@@ -181,7 +181,73 @@ const blank=()=>({v:1,onboarded:false,set:{apiKey:"",limitMin:60,hideShorts:true
   videos:{},later:[],notes:{},bookmarks:{},hist:{},stats:{},extra:{},intent:{},kindStats:{},agg:{},updated:0});
 let S=blank();
 try{ const raw=localStorage.getItem(KEY); if(raw){ const d=JSON.parse(raw); S=Object.assign(blank(),d,{set:Object.assign(blank().set,d.set||{})}); } }catch(e){}
-function save(){ S.updated=Date.now(); try{ localStorage.setItem(KEY,JSON.stringify(S)); }catch(e){} }
+function save(){ S.updated=Date.now(); try{ localStorage.setItem(KEY,JSON.stringify(S)); }catch(e){} Sync.schedule(); }
+
+/* ================= sync (private GitHub gist) ================= */
+const SKEY="stillwatch-sync", GFILE="stillwatch-data.json";
+const Sync={
+  cfg:(()=>{ try{ return JSON.parse(localStorage.getItem("stillwatch-sync"))||{}; }catch(e){ return {}; } })(),
+  status:"", t:null, busy:false, lastPull:0,
+  saveCfg(){ try{ localStorage.setItem(SKEY,JSON.stringify(this.cfg)); }catch(e){} },
+  on(){ return !!this.cfg.token; },
+  async gh(path,opt={}){
+    const r=await fetch("https://api.github.com"+path,{...opt,headers:{"Accept":"application/vnd.github+json","Authorization":"Bearer "+this.cfg.token,...(opt.body?{"Content-Type":"application/json"}:{})}});
+    if(r.status===401) throw new Error("GitHub rejected the token. Create a new one.");
+    if(r.status===403||r.status===404&&!path.startsWith("/gists/")) throw new Error("The token needs the \"gist\" permission.");
+    if(!r.ok&&r.status!==404) throw new Error("GitHub error "+r.status);
+    return r.status===404?null:r.json();
+  },
+  async findGist(){
+    if(this.cfg.gistId) return this.cfg.gistId;
+    for(let page=1;page<=5;page++){ const list=await this.gh(`/gists?per_page=100&page=${page}`); if(!list||!list.length) break;
+      const g=list.find(x=>x.files&&x.files[GFILE]); if(g){ this.cfg.gistId=g.id; this.saveCfg(); return g.id; } }
+    const g=await this.gh("/gists",{method:"POST",body:JSON.stringify({description:"Stillwatch sync data (private)",public:false,files:{[GFILE]:{content:JSON.stringify(S)}}})});
+    this.cfg.gistId=g.id; this.saveCfg(); return g.id;
+  },
+  async pull(){
+    if(!this.on()||this.busy) return; this.busy=true; this.set("Syncing…");
+    try{
+      const id=await this.findGist(); let g=await this.gh("/gists/"+id);
+      if(!g){ this.cfg.gistId=""; this.saveCfg(); const nid=await this.findGist(); g=await this.gh("/gists/"+nid); }
+      const f=g.files[GFILE]; let txt=f.content; if(f.truncated) txt=await (await fetch(f.raw_url)).text();
+      const remote=JSON.parse(txt||"{}"); const before=JSON.stringify(S);
+      S=merge(S,remote); try{ localStorage.setItem(KEY,JSON.stringify(S)); }catch(e){}
+      this.lastPull=Date.now(); this.busy=false; await this.push(true);
+      if(JSON.stringify(S)!==before){ feedCache=null; render(); }
+    }catch(e){ this.busy=false; this.set("⚠ "+e.message); }
+  },
+  schedule(){ if(!this.on()) return; clearTimeout(this.t); this.t=setTimeout(()=>this.push(),4000); },
+  async push(force){
+    if(!this.on()||(this.busy&&!force)) return; this.busy=true;
+    try{ const id=await this.findGist(); await this.gh("/gists/"+id,{method:"PATCH",body:JSON.stringify({files:{[GFILE]:{content:JSON.stringify(S)}}})});
+      this.cfg.last=Date.now(); this.saveCfg(); this.set("✓ Synced "+new Date().toLocaleTimeString([],{hour:"numeric",minute:"2-digit"})); }
+    catch(e){ this.set("⚠ "+e.message); }
+    this.busy=false;
+  },
+  set(s){ this.status=s; const el=document.getElementById("syncStatus"); if(el) el.textContent=s; }
+};
+// field-aware merge so two devices don't erase each other's work
+function merge(L,R){
+  if(!R||!R.set) return L;
+  const newer=(R.updated||0)>(L.updated||0)? R : L, out={...blank(),...L};
+  ["set","channels","later","topics","onboarded"].forEach(k=>{ if(newer[k]!==undefined) out[k]=newer[k]; });
+  out.set={...blank().set,...newer.set};
+  out.videos={...(R.videos||{}),...(L.videos||{})};
+  const maxMap=(a={},b={})=>{ const o={...a}; for(const k in b) o[k]=Math.max(o[k]||0,b[k]||0); return o; };
+  out.stats=maxMap(L.stats,R.stats); out.agg=maxMap(L.agg,R.agg); out.extra=maxMap(L.extra,R.extra);
+  out.kindStats={...(R.kindStats||{}),...(L.kindStats||{})};
+  for(const k in R.kindStats||{}){ const a=L.kindStats?.[k], b=R.kindStats[k]; if(typeof b==="number") out.kindStats[k]=Math.max(a||0,b); else if(a&&b) out.kindStats[k]={learn:Math.max(a.learn||0,b.learn||0),fun:Math.max(a.fun||0,b.fun||0)}; }
+  out.notes={}; new Set([...Object.keys(L.notes||{}),...Object.keys(R.notes||{})]).forEach(id=>{ const m=new Map(); [...(R.notes?.[id]||[]),...(L.notes?.[id]||[])].forEach(n=>m.set(n.c,n)); out.notes[id]=[...m.values()]; });
+  if(newer===R && R.deletedNotes) R.deletedNotes.forEach(c=>{ for(const id in out.notes) out.notes[id]=out.notes[id].filter(n=>n.c!==c); });
+  out.deletedNotes=[...new Set([...(L.deletedNotes||[]),...(R.deletedNotes||[])])].slice(-500);
+  out.deletedNotes.forEach(c=>{ for(const id in out.notes) out.notes[id]=out.notes[id].filter(n=>n.c!==c); });
+  out.bookmarks={}; new Set([...Object.keys(L.bookmarks||{}),...Object.keys(R.bookmarks||{})]).forEach(id=>{ out.bookmarks[id]=[...new Set([...(L.bookmarks?.[id]||[]),...(R.bookmarks?.[id]||[])])]; });
+  const newerAt=(a={},b={})=>{ const o={...a}; for(const k in b) if(!o[k]||(b[k].at||0)>(o[k].at||0)) o[k]=b[k]; return o; };
+  out.hist=newerAt(L.hist,R.hist); out.intent=newerAt(L.intent,R.intent);
+  for(const id in out.intent){ const l=L.intent?.[id], r=R.intent?.[id]; if(out.intent[id].hit===undefined){ const h=(l&&l.hit!==undefined)?l.hit:(r&&r.hit!==undefined)?r.hit:undefined; if(h!==undefined) out.intent[id]={...out.intent[id],hit:h}; } }
+  out.updated=Math.max(L.updated||0,R.updated||0);
+  return out;
+}
 const ui={tab:"feed",topic:"All",libTab:"later",q:"",cur:null};
 
 /* ================= data layer (YouTube Data API v3) ================= */
@@ -352,6 +418,7 @@ setInterval(()=>{
   if(overLimit()){ try{ P.pauseVideo(); }catch(e){} save(); showLimit(); }
 },1000);
 // policy: never keep playing when the app isn't on screen
+document.addEventListener("visibilitychange",()=>{ if(!document.hidden && Sync.on() && Date.now()-Sync.lastPull>30000) Sync.pull(); if(document.hidden && Sync.on()){ clearTimeout(Sync.t); Sync.push(); } });
 document.addEventListener("visibilitychange",()=>{ if(document.hidden){ try{ P&&pReady&&P.pauseVideo(); }catch(e){} save(); } });
 
 /* ================= daily limit ================= */
@@ -471,7 +538,7 @@ function renderWatch(){
     if(a==="bm"){ (S.bookmarks[id]=S.bookmarks[id]||[]).push(Math.floor(t)); save(); toast("Bookmarked "+fmtT(t)); renderWatch(); }
     if(a==="later"){ toggleLater(id); renderWatch(); } });
   const cp=$("#copyNotes"); if(cp) cp.onclick=async()=>{ const txt=`${v.title}\nhttps://youtu.be/${id}\n\n`+notes.map(n=>`[${fmtT(n.t)}] ${n.text}`).join("\n"); try{ await navigator.clipboard.writeText(txt); toast("Notes copied"); }catch(e){ toast("Couldn't copy"); } };
-  $$("[data-delnote]").forEach(b=>b.onclick=()=>{ S.notes[id]=(S.notes[id]||[]).filter(n=>String(n.c)!==b.dataset.delnote); save(); renderWatch(); });
+  $$("[data-delnote]").forEach(b=>b.onclick=()=>{ S.notes[id]=(S.notes[id]||[]).filter(n=>String(n.c)!==b.dataset.delnote); (S.deletedNotes=S.deletedNotes||[]).push(+b.dataset.delnote); save(); renderWatch(); });
   bindCommon();
 }
 function miniRow(id){ const v=S.videos[id]; if(!v) return ""; return `<button class="listrow" data-play="${id}"><div class="thumb mini"><img src="${esc(v.thumb)}" alt="">${v.dur?`<span class="dur">${fmtT(v.dur)}</span>`:""}</div><div style="min-width:0;flex:1"><div class="sm" style="font-weight:650;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">${esc(v.title)}</div><div class="xs muted">${esc(v.chTitle)}</div></div></button>`; }
@@ -608,6 +675,13 @@ function renderYou(){
      <button class="toggle" role="switch" aria-checked="${S.set.hideShorts}" data-tog="hideShorts"><span>Hide Shorts and clips under 3 min</span><span class="sw"></span></button>
      <button class="toggle" role="switch" aria-checked="${!!S.set.lite}" data-tog="lite"><span>Safari blocking mode<br><span class="xs muted">Plays from youtube-nocookie.com so you can block youtube.com with Screen Time. Reopen the app after changing.</span></span><span class="sw"></span></button>
    </div>
+   <div class="label">Sync across devices</div>
+   <div class="card">${Sync.on()?`<div class="row between"><b>GitHub sync is on</b><span class="xs muted" id="syncStatus">${esc(Sync.status||"")}</span></div>
+       <p class="xs muted" style="margin:6px 0 10px">Your Mac, Dock app and iPhone share one private gist. Changes sync a few seconds after you make them and whenever you open the app.</p>
+       <div class="row wrap"><button class="chip" id="syncNow">↻ Sync now</button><button class="chip" id="syncLink">📱 Copy phone setup link</button><button class="chip" id="syncOff">Turn off</button></div>`
+     :`<label for="tok" class="sm" style="font-weight:700">GitHub token</label>
+       <div class="row" style="margin-top:8px"><input id="tok" type="password" autocomplete="off" placeholder="ghp_…"><button class="btn" id="syncGo" style="padding:12px 16px">Connect</button></div>
+       <p class="xs muted" style="margin:8px 0 0">Keeps Safari, the Dock app and your iPhone in sync. <button class="xs" id="tokHelp" style="color:var(--c-accent);text-decoration:underline">How to get a token</button></p>`}</div>
    <div class="label">YouTube connection</div>
    <div class="card"><label for="key" class="sm" style="font-weight:700">YouTube Data API key</label>
      <div class="row" style="margin-top:8px"><input id="key" type="password" autocomplete="off" placeholder="AIza…" value="${esc(S.set.apiKey)}"><button class="btn" id="saveKey" style="padding:12px 16px">Save</button></div>
@@ -625,9 +699,25 @@ function renderYou(){
     if(!S.set.apiKey){ toast("Key removed"); return renderYou(); }
     try{ await yt("videos",{part:"id",id:"M7lc1UVf-VE"}); toast("Key works ✓"); }catch(e){ toast(e.message); } renderYou(); };
   $("#keyHelp").onclick=keyGuide;
+  const sg=$("#syncGo"); if(sg) sg.onclick=async()=>{ const t=$("#tok").value.trim(); if(!t) return; Sync.cfg={token:t}; Sync.saveCfg(); sg.disabled=true; sg.textContent="…"; await Sync.pull(); if((Sync.status||"").startsWith("⚠")){ toast(Sync.status.slice(2)); Sync.cfg={}; Sync.saveCfg(); } else toast("Sync is on"); renderYou(); };
+  const th=$("#tokHelp"); if(th) th.onclick=tokenGuide;
+  const sn=$("#syncNow"); if(sn) sn.onclick=()=>Sync.pull();
+  const so=$("#syncOff"); if(so) so.onclick=()=>{ Sync.cfg={}; Sync.saveCfg(); toast("Sync turned off on this device"); renderYou(); };
+  const sl=$("#syncLink"); if(sl) sl.onclick=async()=>{ const link=location.origin+location.pathname+"#sync="+encodeURIComponent(Sync.cfg.token);
+    try{ await navigator.clipboard.writeText(link); toast("Link copied. Send it to your phone, e.g. AirDrop or Notes"); }catch(e){ openSheet(`<h3>Phone setup link</h3><p class="sm muted">Copy this and open it on your iPhone. It contains your sync token, so don't post it anywhere.</p><textarea rows="4" readonly>${esc(link)}</textarea>`); } };
   $("#exp").onclick=()=>{ const b=new Blob([JSON.stringify(S,null,1)],{type:"application/json"}); const a=document.createElement("a"); a.href=URL.createObjectURL(b); a.download="stillwatch-backup-"+dayKey()+".json"; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),2000); };
   $("#imp").onchange=async e=>{ try{ const d=JSON.parse(await e.target.files[0].text()); if(!d.set) throw 0; S=Object.assign(blank(),d,{set:Object.assign(blank().set,d.set)}); save(); feedCache=null; toast("Backup restored"); renderYou(); }catch(_){ toast("That file isn't a Stillwatch backup"); } };
   $("#reset").onclick=()=>{ openSheet(`<h3>Reset everything?</h3><p class="muted">Channels, notes, history and settings on this device will be deleted.</p><div class="row"><button class="btn ghost" style="flex:1" id="rN">Cancel</button><button class="btn" style="flex:1;background:var(--c-danger)" id="rY">Reset</button></div>`); $("#rN").onclick=closeSheet; $("#rY").onclick=()=>{ localStorage.clear(); S=blank(); closeSheet(); closePlayer(); render(); }; };
+}
+function tokenGuide(){
+  openSheet(`<h3>Create a sync token (2 minutes)</h3>
+   <ol class="steps sm">
+    <li>Open <a href="https://github.com/settings/tokens/new?scopes=gist&description=Stillwatch%20sync" target="_blank" rel="noopener">GitHub → New token</a> (signed in as you). The <b>gist</b> box is already ticked.</li>
+    <li>Set <b>Expiration</b> to <b>No expiration</b>, or 1 year if you'd rather renew it.</li>
+    <li>Leave every other box unticked. Scroll down and click <b>Generate token</b>.</li>
+    <li>Copy the token (starts with <code>ghp_</code>), paste it here, and click <b>Connect</b>.</li>
+    <li>For your iPhone: click <b>📱 Copy phone setup link</b>, AirDrop or Notes it to your phone, and open it in Safari. That's it.</li></ol>
+   <p class="xs muted">The token can only read and write gists, not your code or account. Your data lives in one secret gist named "Stillwatch sync data".</p>`);
 }
 function keyGuide(){
   openSheet(`<h3>Get a free YouTube API key</h3><p class="sm muted">Takes about 5 minutes. It's free, and it lets Stillwatch load your channels and search.</p>
@@ -683,7 +773,9 @@ $$("#nav button").forEach(b=>b.onclick=()=>setTab(b.dataset.tab));
 $("#dockClose").onclick=closePlayer;
 $("#dockOpen").onclick=()=>{ ui.tab="watch"; render(); };
 try{ const h=location.hash.slice(1); if(["feed","search","insights","library","you"].includes(h)) ui.tab=h; }catch(e){}
+try{ const m=location.hash.match(/^#sync=(.+)$/); if(m){ Sync.cfg={token:decodeURIComponent(m[1])}; Sync.saveCfg(); history.replaceState(null,"",location.pathname); setTimeout(()=>toast("Sync connected. Pulling your data…"),300); } }catch(e){}
 render();
+if(Sync.on()) Sync.pull();
 </script>
 </body>
 </html>
