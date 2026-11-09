@@ -187,7 +187,7 @@ function save(){ S.updated=Date.now(); try{ localStorage.setItem(KEY,JSON.string
 const SKEY="stillwatch-sync", GFILE="stillwatch-data.json";
 const Sync={
   cfg:(()=>{ try{ return JSON.parse(localStorage.getItem("stillwatch-sync"))||{}; }catch(e){ return {}; } })(),
-  status:"", t:null, busy:false, lastPull:0,
+  status:"Not synced yet on this device", t:null, busy:false, lastPull:0,
   saveCfg(){ try{ localStorage.setItem(SKEY,JSON.stringify(this.cfg)); }catch(e){} },
   on(){ return !!this.cfg.token; },
   async gh(path,opt={}){
@@ -684,7 +684,7 @@ function renderYou(){
    <div class="label">Sync across devices</div>
    <div class="card">${Sync.on()?`<div class="row between"><b>GitHub sync is on</b><span class="xs muted" id="syncStatus">${esc(Sync.status||"")}</span></div>
        <p class="xs muted" style="margin:6px 0 10px">Your Mac, Dock app and iPhone share one private gist. Changes sync a few seconds after you make them and whenever you open the app.</p>
-       <div class="row wrap"><button class="chip" id="syncNow">↻ Sync now</button><button class="chip" id="syncLink">📱 Copy phone setup link</button><button class="chip" id="syncOff">Turn off</button></div>`
+       <div class="row wrap"><button class="chip" id="syncNow">↻ Sync now</button><button class="chip" id="syncHist">⏪ Restore earlier version</button><button class="chip" id="syncLink">📱 Copy phone setup link</button><button class="chip" id="syncOff">Turn off</button></div>`
      :`<label for="tok" class="sm" style="font-weight:700">GitHub token</label>
        <div class="row" style="margin-top:8px"><input id="tok" type="password" autocomplete="off" placeholder="ghp_…"><button class="btn" id="syncGo" style="padding:12px 16px">Connect</button></div>
        <p class="xs muted" style="margin:8px 0 0">Keeps Safari, the Dock app and your iPhone in sync. <button class="xs" id="tokHelp" style="color:var(--c-accent);text-decoration:underline">How to get a token</button></p>`}</div>
@@ -708,12 +708,28 @@ function renderYou(){
   const sg=$("#syncGo"); if(sg) sg.onclick=async()=>{ const t=$("#tok").value.trim(); if(!t) return; Sync.cfg={token:t}; Sync.saveCfg(); sg.disabled=true; sg.textContent="…"; await Sync.pull(); if((Sync.status||"").startsWith("⚠")){ toast(Sync.status.slice(2)); Sync.cfg={}; Sync.saveCfg(); } else toast("Sync is on"); renderYou(); };
   const th=$("#tokHelp"); if(th) th.onclick=tokenGuide;
   const sn=$("#syncNow"); if(sn) sn.onclick=()=>Sync.pull();
+  const sh=$("#syncHist"); if(sh) sh.onclick=openHistory;
   const so=$("#syncOff"); if(so) so.onclick=()=>{ Sync.cfg={}; Sync.saveCfg(); toast("Sync turned off on this device"); renderYou(); };
   const sl=$("#syncLink"); if(sl) sl.onclick=async()=>{ const link=location.origin+location.pathname+"#sync="+encodeURIComponent(Sync.cfg.token);
     try{ await navigator.clipboard.writeText(link); toast("Link copied. Send it to your phone, e.g. AirDrop or Notes"); }catch(e){ openSheet(`<h3>Phone setup link</h3><p class="sm muted">Copy this and open it on your iPhone. It contains your sync token, so don't post it anywhere.</p><textarea rows="4" readonly>${esc(link)}</textarea>`); } };
   $("#exp").onclick=()=>{ const b=new Blob([JSON.stringify(S,null,1)],{type:"application/json"}); const a=document.createElement("a"); a.href=URL.createObjectURL(b); a.download="stillwatch-backup-"+dayKey()+".json"; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),2000); };
   $("#imp").onchange=async e=>{ try{ const d=JSON.parse(await e.target.files[0].text()); if(!d.set) throw 0; S=Object.assign(blank(),d,{set:Object.assign(blank().set,d.set)}); save(); feedCache=null; toast("Backup restored"); renderYou(); }catch(_){ toast("That file isn't a Stillwatch backup"); } };
   $("#reset").onclick=()=>{ openSheet(`<h3>Reset everything?</h3><p class="muted">Channels, notes, history and settings on this device will be deleted.</p><div class="row"><button class="btn ghost" style="flex:1" id="rN">Cancel</button><button class="btn" style="flex:1;background:var(--c-danger)" id="rY">Reset</button></div>`); $("#rN").onclick=closeSheet; $("#rY").onclick=()=>{ localStorage.clear(); S=blank(); closeSheet(); closePlayer(); render(); }; };
+}
+async function openHistory(){
+  openSheet(`<h3>Restore an earlier version</h3><p class="sm muted">Every sync is saved by GitHub. Pick a version that still has your channels and key.</p><div id="hist"><span class="spinner"></span> Loading versions…</div>`);
+  const box=$("#hist");
+  try{
+    const id=await Sync.findGist(); const g=await Sync.gh("/gists/"+id); const hist=(g.history||[]).slice(0,20);
+    const rows=[];
+    for(const h of hist){ try{ const v=await Sync.gh(`/gists/${id}/${h.version}`); const f=v.files[GFILE]; let t=f.content; if(f.truncated) t=await (await fetch(f.raw_url)).text(); const d=JSON.parse(t||"{}");
+        rows.push({ver:h.version,at:h.committed_at,ch:(d.channels||[]).length,key:!!(d.set&&d.set.apiKey),notes:Object.values(d.notes||{}).reduce((a,n)=>a+n.length,0),data:d}); }catch(e){} 
+      box.innerHTML=rows.map((r,i)=>`<div class="listrow"><div style="flex:1"><b class="sm">${new Date(r.at).toLocaleString([], {month:"short",day:"numeric",hour:"numeric",minute:"2-digit"})}</b><div class="xs muted">${r.ch} channel${r.ch===1?"":"s"} · ${r.notes} notes · API key ${r.key?"✓":"✗"}</div></div><button class="chip" data-restore="${i}">Restore</button></div>`).join("")+(rows.length<hist.length?`<p class="xs muted"><span class="spinner"></span> loading more…</p>`:"");
+      $$("[data-restore]").forEach(b=>b.onclick=async()=>{ const d=rows[+b.dataset.restore].data;
+        S=merge(S,{...d,updated:Date.now()+1}); ["set","channels","later","topics"].forEach(k=>{ if(d[k]) S[k]=d[k]; }); S.onboarded=true;
+        try{ localStorage.setItem(KEY,JSON.stringify(S)); }catch(e){} feedCache=null; await Sync.push(true); closeSheet(); toast("Restored. Open Sync now on your other devices."); render(); }); }
+    if(!rows.length) box.innerHTML=`<p class="sm muted">No saved versions found.</p>`;
+  }catch(e){ box.innerHTML=`<div class="notice">${esc(e.message)}</div>`; }
 }
 function tokenGuide(){
   openSheet(`<h3>Create a sync token (2 minutes)</h3>
@@ -782,6 +798,10 @@ try{ const h=location.hash.slice(1); if(["feed","search","insights","library","y
 try{ const m=location.hash.match(/^#sync=(.+)$/); if(m){ Sync.cfg={token:decodeURIComponent(m[1])}; Sync.saveCfg(); history.replaceState(null,"",location.pathname); setTimeout(()=>toast("Sync connected. Pulling your data…"),300); } }catch(e){}
 render();
 if(Sync.on()) Sync.pull();
+const BUILD="2026-11-09-4";
+async function checkUpdate(){ try{ const t=await (await fetch(location.pathname+"?v="+Date.now(),{cache:"no-store"})).text(); const m=t.match(/const BUILD="([^"]+)"/);
+  if(m&&m[1]!==BUILD&&sessionStorage.getItem("sw-reloaded")!==m[1]){ sessionStorage.setItem("sw-reloaded",m[1]); location.reload(); } }catch(e){} }
+checkUpdate(); document.addEventListener("visibilitychange",()=>{ if(!document.hidden) checkUpdate(); });
 </script>
 </body>
 </html>
