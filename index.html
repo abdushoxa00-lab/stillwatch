@@ -19,11 +19,11 @@
   --r-sm:10px; --r-md:14px; --r-lg:20px; --r-pill:999px;
   --s-1:4px; --s-2:8px; --s-3:12px; --s-4:16px; --s-5:20px; --s-6:28px;
   --f-xs:12px; --f-sm:13.5px; --f-md:15px; --f-lg:18px; --f-xl:24px; --f-xxl:30px;
-  --nav-h:62px; --shadow:0 10px 30px rgba(0,0,0,.35);
+  --nav-h:62px; --c-learn:#2a9c80; --c-fun:#c47c22; --shadow:0 10px 30px rgba(0,0,0,.35);
   --font:-apple-system,BlinkMacSystemFont,"SF Pro Text",Inter,system-ui,sans-serif;
 }
 @media (prefers-color-scheme: light){
-  :root{--c-bg:#f5f7f6;--c-surface:#ffffff;--c-surface-2:#eef2f0;--c-line:#dfe6e3;--c-ink:#101816;--c-muted:#5d6d68;--c-accent:#11896b;--c-accent-ink:#ffffff;--shadow:0 10px 30px rgba(0,0,0,.08)}
+  :root{--c-bg:#f5f7f6;--c-surface:#ffffff;--c-surface-2:#eef2f0;--c-line:#dfe6e3;--c-ink:#101816;--c-muted:#5d6d68;--c-accent:#11896b;--c-accent-ink:#ffffff;--c-learn:#11896b;--c-fun:#d9921f;--shadow:0 10px 30px rgba(0,0,0,.08)}
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;background:var(--c-bg);color:var(--c-ink);font-family:var(--font);font-size:var(--f-md);line-height:1.45}
@@ -123,6 +123,19 @@ body:not(.watching) main{padding-top:calc(env(safe-area-inset-top) + var(--s-4))
 #limit{position:fixed;inset:0;z-index:40;background:color-mix(in srgb,var(--c-bg) 94%,transparent);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);display:none;align-items:center;justify-content:center;padding:var(--s-6);text-align:center}
 #limit.on{display:flex}
 #limit .big{font-size:56px;margin-bottom:var(--s-3)}
+.key{display:inline-block;width:9px;height:9px;border-radius:3px;margin-right:5px;vertical-align:0}
+.legend{display:flex;gap:10px;color:var(--c-muted)}
+.sbars{display:flex;align-items:flex-end;gap:2px;height:130px;margin-top:12px}
+.sbars.hours{height:90px}
+.sb{flex:1;height:100%;display:flex;flex-direction:column;justify-content:flex-end;align-items:stretch;gap:2px;min-width:0;padding:0}
+.sb i{display:block;border-radius:2px;min-height:0}
+.sb i:last-of-type{border-radius:4px 4px 2px 2px}
+.sb span{font-size:10px;color:var(--c-muted);text-align:center;height:13px;line-height:13px;margin-top:2px}
+.sb:hover i,.sb:focus-visible i{filter:brightness(1.15)}
+.tbl{width:100%;border-collapse:collapse;margin-top:8px}
+.tbl th{text-align:left;font-size:11.5px;color:var(--c-muted);font-weight:700;padding:6px 4px;border-bottom:1px solid var(--c-line)}
+.tbl td{padding:8px 4px;border-bottom:1px solid var(--c-line);font-variant-numeric:tabular-nums}
+.tbl td:first-child{max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .toast{position:fixed;left:50%;bottom:calc(var(--nav-h) + env(safe-area-inset-bottom) + var(--s-4));transform:translate(-50%,10px);background:var(--c-ink);color:var(--c-bg);padding:10px 16px;border-radius:var(--r-pill);font-weight:600;font-size:var(--f-sm);opacity:0;transition:.22s;z-index:50;pointer-events:none;max-width:90vw;text-align:center}
 .toast.show{opacity:1;transform:translate(-50%,0)}
 .notice{background:color-mix(in srgb,var(--c-warn) 14%,transparent);border:1px solid color-mix(in srgb,var(--c-warn) 40%,transparent);border-radius:var(--r-md);padding:var(--s-3) var(--s-4);font-size:var(--f-sm);margin:var(--s-3) 0}
@@ -140,6 +153,7 @@ a{color:var(--c-accent)}
  <div class="in">
   <button data-tab="feed"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>Feed</button>
   <button data-tab="search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>Search</button>
+  <button data-tab="insights"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 20V11M10 20V5M16 20v-6M22 20H2"/></svg>Insights</button>
   <button data-tab="library"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M4 4h4v16H4zM10 4h4v16h-4zM16.5 4.5l3.5 1-4 15-3.5-1z"/></svg>Library</button>
   <button data-tab="you"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>You</button>
  </div>
@@ -164,7 +178,7 @@ const decode=s=>{ const t=document.createElement("textarea"); t.innerHTML=s; ret
 /* ================= state ================= */
 const KEY="stillwatch-v1";
 const blank=()=>({v:1,onboarded:false,set:{apiKey:"",limitMin:60,hideShorts:true,speed:1,name:""},channels:[],topics:["Learning","Japanese","Fitness","Music"],
-  videos:{},later:[],notes:{},bookmarks:{},hist:{},stats:{},extra:{},intent:{},kindStats:{},updated:0});
+  videos:{},later:[],notes:{},bookmarks:{},hist:{},stats:{},extra:{},intent:{},kindStats:{},agg:{},updated:0});
 let S=blank();
 try{ const raw=localStorage.getItem(KEY); if(raw){ const d=JSON.parse(raw); S=Object.assign(blank(),d,{set:Object.assign(blank().set,d.set||{})}); } }catch(e){}
 function save(){ S.updated=Date.now(); try{ localStorage.setItem(KEY,JSON.stringify(S)); }catch(e){} }
@@ -302,6 +316,7 @@ setInterval(()=>{
   if(document.hidden||!ui.cur||!isPlaying()) return;
   const k=dayKey(); S.stats[k]=(S.stats[k]||0)+1;
   const kind=(S.intent[ui.cur]||{}).kind||"learn"; const ks=S.kindStats[k]=S.kindStats[k]||{learn:0,fun:0}; ks[kind]=(ks[kind]||0)+1;
+  const ak=k+"|"+new Date().getHours()+"|"+ui.cur+"|"+kind; S.agg[ak]=(S.agg[ak]||0)+1;
   const h=S.hist[ui.cur]=S.hist[ui.cur]||{t:0,sec:0,at:0}; h.t=curTime(); h.sec++; h.at=Date.now();
   if(S.stats[k]%5===0) save();
   if(overLimit()){ try{ P.pauseVideo(); }catch(e){} save(); showLimit(); }
@@ -329,7 +344,7 @@ function render(){
   $$("#nav button").forEach(b=>{ if(b.dataset.tab===ui.tab) b.setAttribute("aria-current","page"); else b.removeAttribute("aria-current"); });
   if(!S.onboarded){ $("#nav").style.display="none"; main.innerHTML=onboardView(); bindOnboard(); return; }
   $("#nav").style.display="";
-  ({feed:renderFeed,search:renderSearch,library:renderLibrary,you:renderYou,watch:renderWatch})[ui.tab]();
+  ({feed:renderFeed,search:renderSearch,insights:renderInsights,library:renderLibrary,you:renderYou,watch:renderWatch})[ui.tab]();
 }
 const logoSVG=`<svg width="26" height="26" viewBox="0 0 26 26" aria-hidden="true"><circle cx="13" cy="13" r="11" fill="none" stroke="var(--c-accent)" stroke-width="2.4"/><path d="M7 14.5c2-2.4 4-2.4 6 0s4 2.4 6 0" fill="none" stroke="var(--c-accent)" stroke-width="2.4" stroke-linecap="round"/></svg>`;
 function header(title, right=""){ return `<div class="top"><div class="logo">${title==="Stillwatch"?logoSVG:""}<span>${esc(title)}</span></div>${right}</div>`; }
@@ -460,6 +475,87 @@ function renderLibrary(){
   bindCommon();
 }
 
+/* ----- Insights (S09) ----- */
+ui.range=7;
+function aggRows(){ return Object.entries(S.agg).map(([k,sec])=>{ const [d,h,id,kind]=k.split("|"); return {d,h:+h,id,kind,sec}; }); }
+function dayList(n,offset=0){ return [...Array(n)].map((_,i)=>{ const x=new Date(); x.setDate(x.getDate()-offset-(n-1-i)); return dayKey(x); }); }
+function sumKind(rows,days){ const set=new Set(days); return rows.filter(r=>set.has(r.d)).reduce((a,r)=>{ a[r.kind]=(a[r.kind]||0)+r.sec; return a; },{learn:0,fun:0}); }
+const pctTxt=(a,b)=>b? Math.round(a/b*100)+"%" : "—";
+function renderInsights(){
+  const rows=aggRows(), n=ui.range, days=dayList(n), prev=dayList(n,n);
+  const cur=sumKind(rows,days), old=sumKind(rows,prev); const tot=cur.learn+cur.fun, oldTot=old.learn+old.fun;
+  const share=tot?cur.learn/tot:0, oldShare=oldTot?old.learn/oldTot:null;
+  const delta=oldShare===null?null:Math.round((share-oldShare)*100);
+  // per-day stacked
+  const perDay=days.map(d=>{ const s=sumKind(rows,[d]); return {d,...s}; }); const maxDay=Math.max(60,...perDay.map(p=>p.learn+p.fun));
+  // hour of day
+  const set=new Set(days); const hours=[...Array(24)].map((_,h)=>rows.filter(r=>set.has(r.d)&&r.h===h).reduce((a,r)=>{ a[r.kind]+=r.sec; return a; },{learn:0,fun:0}));
+  const maxH=Math.max(60,...hours.map(x=>x.learn+x.fun));
+  const funPeak=hours.reduce((b,x,h)=>x.fun>hours[b].fun?h:b,0);
+  // channels & topics
+  const byCh={}; rows.filter(r=>set.has(r.d)).forEach(r=>{ const v=S.videos[r.id]; const key=v?v.ch:"?"; const o=byCh[key]=byCh[key]||{name:v?v.chTitle:"Unknown",learn:0,fun:0}; o[r.kind]+=r.sec; });
+  const chs=Object.values(byCh).sort((a,b)=>(b.learn+b.fun)-(a.learn+a.fun)).slice(0,6);
+  const byTopic={}; rows.filter(r=>set.has(r.d)).forEach(r=>{ const v=S.videos[r.id]; const c=v&&S.channels.find(x=>x.id===v.ch); const t=(c&&c.topic)||"No topic"; byTopic[t]=(byTopic[t]||0)+r.sec; });
+  const topics=Object.entries(byTopic).sort((a,b)=>b[1]-a[1]);
+  // goals
+  const goals=Object.entries(S.intent).filter(([,g])=>g.kind==="learn").sort((a,b)=>b[1].at-a[1].at);
+  const judged=goals.filter(([,g])=>g.hit!==undefined), hits=judged.filter(([,g])=>g.hit).length;
+  const pending=goals.filter(([,g])=>g.hit===undefined).slice(0,4);
+  // active learning: notes per learning hour (excluding the auto "why" note)
+  const learnIds=new Set(rows.filter(r=>set.has(r.d)&&r.kind==="learn").map(r=>r.id));
+  const notesN=[...learnIds].reduce((a,id)=>a+(S.notes[id]||[]).filter(x=>!String(x.text).startsWith("🎯")).length,0);
+  const nph=cur.learn>=600? (notesN/(cur.learn/3600)).toFixed(1) : null;
+  // learning-dominant streak
+  let streak=0; for(const d of dayList(60).reverse()){ const s=sumKind(rows,[d]); if(s.learn+s.fun===0){ if(d===dayKey()) continue; break; } if(s.learn>=s.fun) streak++; else break; }
+  // insight sentences
+  const tips=[];
+  if(tot===0) tips.push("No watch time logged in this range yet. Insights fill in as you watch.");
+  else {
+    tips.push(`${pctTxt(cur.learn,tot)} of your watching was for learning${delta!==null?` (${delta>=0?"+":""}${delta} pts vs the previous ${n} days)`:""}.`);
+    if(cur.fun>0) tips.push(`Entertainment peaks around ${((funPeak%12)||12)}${funPeak<12?"am":"pm"}. That's the hour to plan around.`);
+    if(nph!==null) tips.push(nph<2?`You took ${nph} notes per learning hour. Passive watching sticks less; aim for 2+.`:`${nph} notes per learning hour. Good active learning.`);
+    if(judged.length>=3) tips.push(`Your learning videos delivered what you wanted ${pctTxt(hits,judged.length)} of the time.`);
+  }
+  main.innerHTML=header("Insights",`<div class="seg" style="width:150px" role="group" aria-label="Range">${[7,30].map(r=>`<button aria-pressed="${ui.range===r}" data-range="${r}">${r} days</button>`).join("")}</div>`)+`
+   <div class="stats">
+     <div class="stat"><div class="v" style="color:var(--c-ink)">${fmtMin(cur.learn)}</div><div class="k"><span class="key" style="background:var(--c-learn)"></span>Learning</div></div>
+     <div class="stat"><div class="v">${fmtMin(cur.fun)}</div><div class="k"><span class="key" style="background:var(--c-fun)"></span>Entertainment</div></div>
+     <div class="stat"><div class="v">${tot?Math.round(share*100)+"%":"—"}</div><div class="k">learning share${delta!==null?`<br><b style="color:${delta>=0?'var(--c-learn)':'var(--c-danger)'}">${delta>=0?"▲":"▼"} ${Math.abs(delta)} pts</b>`:""}</div></div></div>
+   <div class="card"><b>What the numbers say</b><ul class="sm" style="margin:8px 0 0;padding-left:18px">${tips.map(t=>`<li style="margin:4px 0">${esc(t)}</li>`).join("")}</ul></div>
+
+   <div class="card"><div class="row between"><b>Daily watch time</b><div class="legend xs"><span><span class="key" style="background:var(--c-learn)"></span>Learning</span><span><span class="key" style="background:var(--c-fun)"></span>Entertainment</span></div></div>
+     <div class="sbars" role="img" aria-label="Stacked bars of learning and entertainment minutes per day">${perDay.map((p,i)=>`<button class="sb" data-tip="${esc(new Date(p.d+"T12:00").toLocaleDateString(undefined,{weekday:"short",month:"short",day:"numeric"}))}: ${fmtMin(p.learn)} learning · ${fmtMin(p.fun)} entertainment">
+        <i style="height:${p.fun/maxDay*100}%;background:var(--c-fun)"></i><i style="height:${p.learn/maxDay*100}%;background:var(--c-learn)"></i>
+        <span>${n===7||i%5===0||i===n-1?new Date(p.d+"T12:00").toLocaleDateString(undefined,n===7?{weekday:"narrow"}:{day:"numeric"}):""}</span></button>`).join("")}</div>
+     <div class="xs muted" style="margin-top:6px">Tap a bar for the exact split.</div></div>
+
+   <div class="card"><b>When you watch</b><div class="xs muted">Total by hour of day, last ${n} days</div>
+     <div class="sbars hours">${hours.map((x,h)=>`<button class="sb" data-tip="${((h%12)||12)}${h<12?"am":"pm"}: ${fmtMin(x.learn)} learning · ${fmtMin(x.fun)} entertainment"><i style="height:${x.fun/maxH*100}%;background:var(--c-fun)"></i><i style="height:${x.learn/maxH*100}%;background:var(--c-learn)"></i><span>${h%6===0?((h%12)||12)+(h<12?"a":"p"):""}</span></button>`).join("")}</div></div>
+
+   <div class="card"><b>Did your learning videos deliver?</b>
+     <div class="xs muted" style="margin:2px 0 8px">${judged.length?`Hit rate: <b style="color:var(--c-ink)">${pctTxt(hits,judged.length)}</b> of ${judged.length} rated`:"Rate each learning video against the goal you wrote."}</div>
+     ${pending.length?pending.map(([id,g])=>`<div class="note" style="flex-wrap:wrap"><div style="flex:1;min-width:200px"><div class="sm" style="font-weight:650">${esc(S.videos[id]?.title||"Video")}</div><div class="xs muted">Goal: ${esc(g.why)}</div></div><div class="row"><button class="chip" data-hit="${id}" data-v="1">✓ Got it</button><button class="chip" data-hit="${id}" data-v="0">✗ Not really</button></div></div>`).join(""):`<p class="sm muted" style="margin:0">Nothing waiting for a rating.</p>`}</div>
+
+   <div class="stats" style="margin-top:12px">
+     <div class="stat"><div class="v">${streak}🔥</div><div class="k">days learning ≥ entertainment</div></div>
+     <div class="stat"><div class="v">${nph??"—"}</div><div class="k">notes per learning hour</div></div>
+     <div class="stat"><div class="v">${S.kindStats.redirected||0}</div><div class="k">times you chose reading</div></div></div>
+
+   <div class="card"><b>Top channels</b>
+     ${chs.length?`<table class="tbl sm"><thead><tr><th>Channel</th><th>Learning</th><th>Entertain.</th></tr></thead><tbody>${chs.map(c=>`<tr><td>${esc(c.name)}</td><td>${fmtMin(c.learn)}</td><td>${fmtMin(c.fun)}</td></tr>`).join("")}</tbody></table>`:`<p class="sm muted" style="margin:6px 0 0">No data yet.</p>`}</div>
+   ${topics.length?`<div class="card"><b>By topic</b>${topics.map(([t,s])=>`<div style="margin-top:10px"><div class="row between sm"><span>${esc(t)}</span><span class="muted">${fmtMin(s)}</span></div><div class="meter"><i style="width:${s/topics[0][1]*100}%;background:var(--c-muted)"></i></div></div>`).join("")}</div>`:""}
+   <button class="btn ghost block" id="csv" style="margin-top:8px">⬇ Export watch log (CSV)</button>
+   <p class="xs muted" style="text-align:center;margin-top:8px">Opens in Excel, Tableau or Power BI. Tracking started with this update, so earlier watching isn't included.</p>`;
+  $$("[data-range]").forEach(b=>b.onclick=()=>{ ui.range=+b.dataset.range; renderInsights(); });
+  $$(".sb").forEach(b=>b.onclick=()=>toast(b.dataset.tip));
+  $$("[data-hit]").forEach(b=>b.onclick=()=>{ S.intent[b.dataset.hit].hit=b.dataset.v==="1"; save(); renderInsights(); });
+  $("#csv").onclick=()=>{
+    const q=s=>'"'+String(s??"").replace(/"/g,'""')+'"';
+    const lines=["date,hour,video_id,title,channel,topic,kind,minutes,goal,goal_met"].concat(rows.sort((a,b)=>a.d.localeCompare(b.d)||a.h-b.h).map(r=>{ const v=S.videos[r.id]||{}; const c=S.channels.find(x=>x.id===v.ch)||{}; const g=S.intent[r.id]||{};
+      return [r.d,r.h,r.id,q(v.title),q(v.chTitle),q(c.topic),r.kind,(r.sec/60).toFixed(2),q(g.why),g.hit===undefined?"":g.hit].join(","); }));
+    const blob=new Blob([lines.join("\n")],{type:"text/csv"}); const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="stillwatch-log-"+dayKey()+".csv"; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),2000); };
+}
+
 /* ----- You: stats + settings (S07) ----- */
 function renderYou(){
   const days=[...Array(7)].map((_,i)=>{ const d=new Date(); d.setDate(d.getDate()-6+i); return {k:dayKey(d),l:"SMTWTFS"[d.getDay()]}; });
@@ -555,7 +651,7 @@ let tt; function toast(m){ const t=$("#toast"); t.textContent=m; t.classList.add
 $$("#nav button").forEach(b=>b.onclick=()=>setTab(b.dataset.tab));
 $("#dockClose").onclick=closePlayer;
 $("#dockOpen").onclick=()=>{ ui.tab="watch"; render(); };
-try{ const h=location.hash.slice(1); if(["feed","search","library","you"].includes(h)) ui.tab=h; }catch(e){}
+try{ const h=location.hash.slice(1); if(["feed","search","insights","library","you"].includes(h)) ui.tab=h; }catch(e){}
 render();
 </script>
 </body>
