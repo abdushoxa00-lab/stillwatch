@@ -1,0 +1,22 @@
+feature,area,priority,original,clone,notes
+Feed of followed channels only,feed,must,yes,yes,No algorithm; newest first
+Topic filters on feed,feed,should,no,yes,Our addition
+Hide Shorts,feed,must,no,yes,Filter videos under 3 min or #shorts
+Video search,search,must,yes,yes,search.list costs 100 quota units; cached
+Channel search + follow,search,must,yes,yes,
+Embedded player,watch,must,yes,yes,Official IFrame player
+Playback speed,watch,must,yes,yes,
+Timestamped notes,watch,must,no,yes,Our addition
+Bookmarks at timestamp,watch,should,no,yes,
+Resume where you left off,watch,should,yes,yes,
+Watch later queue,library,must,yes,yes,
+History,library,should,yes,yes,
+Daily time limit + overlay,wellbeing,must,partial,yes,Our addition
+Weekly watch-time stats,wellbeing,should,partial,yes,
+Docked player while browsing,watch,should,yes,yes,Player stays at top (200x200 rule)
+Export / import data,settings,could,no,yes,
+Background audio,watch,skip,premium,no,Prohibited by YouTube API policies
+Picture in picture,watch,skip,premium,no,Prohibited for API clients / Premium feature
+Comments,social,skip,yes,no,Excluded by design (distraction)
+Shorts feed,feed,skip,yes,no,Excluded by design
+Recommendations,feed,skip,yes,no,Excluded by design

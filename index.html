@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Stillwatch">
+<meta name="theme-color" content="#0f1413">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="manifest" href="manifest.json">
+<title>Stillwatch</title>
+<style>
+/* ---------- tokens ---------- */
+:root{
+  --c-bg:#0f1413; --c-surface:#171e1c; --c-surface-2:#1f2826; --c-line:#2a3532;
+  --c-ink:#eef3f1; --c-muted:#93a39e; --c-accent:#5fd3b3; --c-accent-ink:#06231b; --c-warn:#f2b45a; --c-danger:#ff7a6b;
+  --r-sm:10px; --r-md:14px; --r-lg:20px; --r-pill:999px;
+  --s-1:4px; --s-2:8px; --s-3:12px; --s-4:16px; --s-5:20px; --s-6:28px;
+  --f-xs:12px; --f-sm:13.5px; --f-md:15px; --f-lg:18px; --f-xl:24px; --f-xxl:30px;
+  --nav-h:62px; --shadow:0 10px 30px rgba(0,0,0,.35);
+  --font:-apple-system,BlinkMacSystemFont,"SF Pro Text",Inter,system-ui,sans-serif;
+}
+@media (prefers-color-scheme: light){
+  :root{--c-bg:#f5f7f6;--c-surface:#ffffff;--c-surface-2:#eef2f0;--c-line:#dfe6e3;--c-ink:#101816;--c-muted:#5d6d68;--c-accent:#11896b;--c-accent-ink:#ffffff;--shadow:0 10px 30px rgba(0,0,0,.08)}
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--c-bg);color:var(--c-ink);font-family:var(--font);font-size:var(--f-md);line-height:1.45}
+button,input,select,textarea{font:inherit;color:inherit}
+button{background:none;border:0;cursor:pointer;padding:0}
+:focus-visible{outline:2px solid var(--c-accent);outline-offset:2px;border-radius:6px}
+input,textarea,select{background:var(--c-surface-2);border:1px solid var(--c-line);border-radius:var(--r-md);padding:var(--s-3);width:100%}
+img{display:block;max-width:100%}
+.muted{color:var(--c-muted)} .sm{font-size:var(--f-sm)} .xs{font-size:var(--f-xs)}
+.row{display:flex;align-items:center;gap:var(--s-2)} .between{justify-content:space-between} .wrap{flex-wrap:wrap}
+h1{font-size:var(--f-xxl);margin:0;letter-spacing:-.02em} h2{font-size:var(--f-xl);margin:0} h3{font-size:var(--f-lg);margin:0}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:var(--s-2);padding:var(--s-3) var(--s-5);border-radius:var(--r-pill);background:var(--c-accent);color:var(--c-accent-ink);font-weight:700}
+.btn.ghost{background:var(--c-surface-2);color:var(--c-ink)} .btn.block{width:100%} .btn:disabled{opacity:.45}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:7px 13px;border-radius:var(--r-pill);background:var(--c-surface-2);border:1px solid var(--c-line);font-size:var(--f-sm);font-weight:600;white-space:nowrap}
+.chip[aria-pressed=true]{background:var(--c-ink);color:var(--c-bg);border-color:var(--c-ink)}
+.card{background:var(--c-surface);border:1px solid var(--c-line);border-radius:var(--r-lg);padding:var(--s-4);margin:var(--s-3) 0}
+.label{font-size:var(--f-xs);text-transform:uppercase;letter-spacing:.08em;font-weight:700;color:var(--c-muted);margin:var(--s-6) 0 var(--s-2)}
+.chips{display:flex;gap:var(--s-2);overflow-x:auto;padding-bottom:var(--s-1);scrollbar-width:none} .chips::-webkit-scrollbar{display:none}
+
+/* ---------- layout ---------- */
+#dock{position:sticky;top:0;z-index:15;background:#000;display:none;padding-top:env(safe-area-inset-top)}
+#dock.on{display:block}
+#dock .frame{position:relative;width:100%;aspect-ratio:16/9;max-height:56vh;min-height:200px;margin:0 auto;max-width:900px}
+#dock .frame>div,#dock iframe{position:absolute;inset:0;width:100%;height:100%}
+#dock .bar{display:flex;align-items:center;gap:var(--s-2);padding:var(--s-2) var(--s-3);background:var(--c-surface);border-bottom:1px solid var(--c-line)}
+#dock .bar .t{flex:1;min-width:0;font-size:var(--f-sm);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+main{max-width:720px;margin:0 auto;padding:var(--s-4) var(--s-4) calc(var(--nav-h) + env(safe-area-inset-bottom) + var(--s-6))}
+body:not(.watching) main{padding-top:calc(env(safe-area-inset-top) + var(--s-4))}
+.top{display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--s-3)}
+.logo{display:flex;align-items:center;gap:var(--s-2);font-weight:800;font-size:var(--f-lg);letter-spacing:-.01em}
+.nav{position:fixed;left:0;right:0;bottom:0;height:calc(var(--nav-h) + env(safe-area-inset-bottom));padding-bottom:env(safe-area-inset-bottom);background:color-mix(in srgb,var(--c-bg) 90%,transparent);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border-top:1px solid var(--c-line);display:flex;justify-content:center;z-index:20}
+.nav .in{display:flex;max-width:720px;width:100%}
+.nav button{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-size:11px;font-weight:600;color:var(--c-muted)}
+.nav button[aria-current=page]{color:var(--c-ink)}
+.nav svg{width:23px;height:23px}
+
+/* ---------- video card ---------- */
+.vlist{display:grid;gap:var(--s-4)}
+@media (min-width:700px){.vlist{grid-template-columns:1fr 1fr}}
+.vcard{display:block;width:100%;text-align:left}
+.thumb{position:relative;border-radius:var(--r-md);overflow:hidden;aspect-ratio:16/9;background:var(--c-surface-2)}
+.thumb img{width:100%;height:100%;object-fit:cover}
+.thumb .dur{position:absolute;right:6px;bottom:6px;background:rgba(0,0,0,.78);color:#fff;font-size:11.5px;font-weight:700;padding:2px 6px;border-radius:6px}
+.thumb .prog{position:absolute;left:0;bottom:0;height:3px;background:var(--c-accent)}
+.vmeta{display:flex;gap:var(--s-3);margin-top:var(--s-2);align-items:flex-start}
+.vmeta .tt{font-weight:650;font-size:var(--f-md);line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.vmeta .more{margin-left:auto;padding:4px 6px;color:var(--c-muted);font-size:18px;line-height:1}
+.avatar{width:36px;height:36px;border-radius:50%;object-fit:cover;flex:0 0 auto;background:var(--c-surface-2)}
+.skel{background:linear-gradient(90deg,var(--c-surface-2),var(--c-surface),var(--c-surface-2));background-size:200% 100%;animation:sk 1.2s infinite;border-radius:var(--r-md)}
+@keyframes sk{to{background-position:-200% 0}}
+.empty{text-align:center;padding:var(--s-6) var(--s-4);color:var(--c-muted)}
+.empty h3{color:var(--c-ink);margin-bottom:var(--s-2)}
+
+/* ---------- watch panel ---------- */
+.speeds{display:flex;gap:6px}
+.speeds button{flex:1;padding:8px 0;border-radius:var(--r-sm);background:var(--c-surface-2);font-weight:700;font-size:var(--f-sm)}
+.speeds button[aria-pressed=true]{background:var(--c-accent);color:var(--c-accent-ink)}
+.actions{display:grid;grid-template-columns:repeat(4,1fr);gap:var(--s-2);margin-top:var(--s-3)}
+.actions button{display:flex;flex-direction:column;align-items:center;gap:4px;padding:var(--s-3) 0;border-radius:var(--r-md);background:var(--c-surface-2);font-size:var(--f-xs);font-weight:600}
+.actions button span{font-size:19px}
+.actions button[aria-pressed=true]{color:var(--c-accent)}
+.note{display:flex;gap:var(--s-3);padding:var(--s-3) 0;border-bottom:1px solid var(--c-line);align-items:flex-start}
+.note:last-child{border-bottom:0}
+.ts{flex:0 0 auto;font-variant-numeric:tabular-nums;font-weight:700;color:var(--c-accent);background:color-mix(in srgb,var(--c-accent) 14%,transparent);padding:2px 8px;border-radius:var(--r-pill);font-size:var(--f-sm)}
+.note .x{margin-left:auto;color:var(--c-muted);padding:0 4px}
+.listrow{display:flex;gap:var(--s-3);align-items:center;padding:var(--s-3) 0;border-bottom:1px solid var(--c-line);width:100%;text-align:left}
+.listrow:last-child{border-bottom:0}
+.listrow .mini{width:112px;flex:0 0 auto}
+.seg{display:flex;background:var(--c-surface-2);border-radius:var(--r-pill);padding:3px;overflow-x:auto;scrollbar-width:none}
+.seg button{flex:1;padding:8px 12px;border-radius:var(--r-pill);font-size:var(--f-sm);font-weight:700;color:var(--c-muted);white-space:nowrap}
+.seg button[aria-pressed=true]{background:var(--c-ink);color:var(--c-bg)}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--s-2)}
+.stat{background:var(--c-surface-2);border-radius:var(--r-md);padding:var(--s-3);text-align:center}
+.stat .v{font-size:var(--f-xl);font-weight:800} .stat .k{font-size:11.5px;color:var(--c-muted)}
+.bars{display:flex;align-items:flex-end;gap:6px;height:110px;margin-top:var(--s-3)}
+.bars div{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:4px;height:100%}
+.bars i{display:block;width:100%;border-radius:6px 6px 3px 3px;background:var(--c-accent);min-height:3px}
+.bars i.over{background:var(--c-warn)}
+.bars span{font-size:10.5px;color:var(--c-muted)}
+.meter{height:8px;border-radius:9px;background:var(--c-surface-2);overflow:hidden;margin-top:var(--s-2)}
+.meter i{display:block;height:100%;background:var(--c-accent)} .meter i.over{background:var(--c-warn)}
+.toggle{display:flex;justify-content:space-between;align-items:center;padding:var(--s-3) 0;border-bottom:1px solid var(--c-line);width:100%;text-align:left}
+.toggle:last-child{border-bottom:0}
+.sw{width:46px;height:28px;border-radius:var(--r-pill);background:var(--c-line);position:relative;flex:0 0 auto;transition:.2s}
+.sw::after{content:"";position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:#fff;transition:.2s}
+[aria-checked=true] .sw{background:var(--c-accent)} [aria-checked=true] .sw::after{left:21px}
+
+/* ---------- sheet / overlay / toast ---------- */
+.scrim{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:30;display:none}
+.scrim.open{display:block}
+.sheet{position:fixed;left:0;right:0;bottom:0;max-width:720px;margin:0 auto;max-height:88vh;overflow-y:auto;background:var(--c-surface);border-radius:24px 24px 0 0;padding:var(--s-2) var(--s-5) calc(env(safe-area-inset-bottom) + var(--s-5));z-index:31;transform:translateY(105%);transition:transform .26s cubic-bezier(.2,.8,.2,1)}
+.sheet:not(.open){visibility:hidden;transition:transform .26s,visibility 0s .26s}
+.sheet.open{transform:none}
+.grab{width:40px;height:5px;border-radius:5px;background:var(--c-line);margin:6px auto var(--s-4)}
+.menu button{display:flex;gap:var(--s-3);align-items:center;width:100%;padding:var(--s-3) 0;font-weight:600;border-bottom:1px solid var(--c-line)}
+.menu button:last-child{border-bottom:0}
+#limit{position:fixed;inset:0;z-index:40;background:color-mix(in srgb,var(--c-bg) 94%,transparent);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);display:none;align-items:center;justify-content:center;padding:var(--s-6);text-align:center}
+#limit.on{display:flex}
+#limit .big{font-size:56px;margin-bottom:var(--s-3)}
+.toast{position:fixed;left:50%;bottom:calc(var(--nav-h) + env(safe-area-inset-bottom) + var(--s-4));transform:translate(-50%,10px);background:var(--c-ink);color:var(--c-bg);padding:10px 16px;border-radius:var(--r-pill);font-weight:600;font-size:var(--f-sm);opacity:0;transition:.22s;z-index:50;pointer-events:none;max-width:90vw;text-align:center}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+.notice{background:color-mix(in srgb,var(--c-warn) 14%,transparent);border:1px solid color-mix(in srgb,var(--c-warn) 40%,transparent);border-radius:var(--r-md);padding:var(--s-3) var(--s-4);font-size:var(--f-sm);margin:var(--s-3) 0}
+ol.steps{padding-left:20px;margin:var(--s-2) 0} ol.steps li{margin:6px 0}
+a{color:var(--c-accent)}
+</style>
+</head>
+<body>
+<div id="dock" aria-label="Now playing">
+  <div class="frame"><div id="player"></div></div>
+  <div class="bar"><div class="t" id="dockTitle"></div><button class="chip" id="dockOpen">Notes</button><button class="chip" id="dockClose" aria-label="Close video">✕</button></div>
+</div>
+<main id="main"></main>
+<nav class="nav" id="nav" aria-label="Main">
+ <div class="in">
+  <button data-tab="feed"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>Feed</button>
+  <button data-tab="search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>Search</button>
+  <button data-tab="library"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M4 4h4v16H4zM10 4h4v16h-4zM16.5 4.5l3.5 1-4 15-3.5-1z"/></svg>Library</button>
+  <button data-tab="you"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>You</button>
+ </div>
+</nav>
+<div class="scrim" id="scrim"></div>
+<div class="sheet" id="sheet" role="dialog" aria-modal="true"><div class="grab"></div><div id="sheetBody"></div></div>
+<div id="limit" role="alertdialog" aria-labelledby="limitT"></div>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+"use strict";
+/* ================= utils ================= */
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
+const dayKey=(d=new Date())=>d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+const fmtT=s=>{ s=Math.max(0,Math.floor(s)); const h=Math.floor(s/3600), m=Math.floor(s%3600/60), x=s%60; return (h?h+":"+String(m).padStart(2,"0"):m)+":"+String(x).padStart(2,"0"); };
+const isoDur=d=>{ const m=String(d||"").match(/P(?:(\d+)D)?T?(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/); return m?(+(m[1]||0))*86400+(+(m[2]||0))*3600+(+(m[3]||0))*60+(+(m[4]||0)):0; };
+const ago=iso=>{ const s=(Date.now()-new Date(iso))/1000; const u=[[31536000,"y"],[2592000,"mo"],[604800,"w"],[86400,"d"],[3600,"h"],[60,"m"]]; for(const [n,l] of u) if(s>=n) return Math.floor(s/n)+l+" ago"; return "just now"; };
+const fmtMin=s=>{ const m=Math.round(s/60); return m<60? m+"m" : Math.floor(m/60)+"h "+(m%60)+"m"; };
+const decode=s=>{ const t=document.createElement("textarea"); t.innerHTML=s; return t.value; };
+
+/* ================= state ================= */
+const KEY="stillwatch-v1";
+const blank=()=>({v:1,onboarded:false,set:{apiKey:"",limitMin:60,hideShorts:true,speed:1,name:""},channels:[],topics:["Learning","Japanese","Fitness","Music"],
+  videos:{},later:[],notes:{},bookmarks:{},hist:{},stats:{},extra:{},updated:0});
+let S=blank();
+try{ const raw=localStorage.getItem(KEY); if(raw){ const d=JSON.parse(raw); S=Object.assign(blank(),d,{set:Object.assign(blank().set,d.set||{})}); } }catch(e){}
+function save(){ S.updated=Date.now(); try{ localStorage.setItem(KEY,JSON.stringify(S)); }catch(e){} }
+const ui={tab:"feed",topic:"All",libTab:"later",q:"",cur:null};
+
+/* ================= data layer (YouTube Data API v3) ================= */
+const API="https://www.googleapis.com/youtube/v3/";
+const cache={ get(k,ttl){ try{ const r=JSON.parse(localStorage.getItem("swc:"+k)); if(r&&Date.now()-r.t<ttl) return r.v; }catch(e){} return null; },
+  set(k,v){ try{ localStorage.setItem("swc:"+k,JSON.stringify({t:Date.now(),v})); }catch(e){ try{ Object.keys(localStorage).filter(x=>x.startsWith("swc:")).forEach(x=>localStorage.removeItem(x)); }catch(_){} } } };
+class ApiError extends Error{ constructor(msg,code){ super(msg); this.code=code; } }
+async function yt(path, params){
+  if(window.__MOCK) return window.__MOCK(path,params);
+  if(!S.set.apiKey) throw new ApiError("Add your YouTube API key in You → Settings to load videos.","nokey");
+  const u=new URL(API+path); Object.entries({...params,key:S.set.apiKey}).forEach(([k,v])=>u.searchParams.set(k,v));
+  let r; try{ r=await fetch(u); }catch(e){ throw new ApiError("You're offline, or YouTube couldn't be reached.","net"); }
+  const j=await r.json().catch(()=>({}));
+  if(!r.ok){ const reason=j?.error?.errors?.[0]?.reason||"";
+    if(/quota/i.test(reason)) throw new ApiError("Today's YouTube quota is used up. It resets at midnight Pacific.","quota");
+    if(/keyInvalid|badRequest/i.test(reason)||r.status===400) throw new ApiError("That API key isn't working. Check it in You → Settings.","badkey");
+    if(r.status===403) throw new ApiError("YouTube refused the request. Check the key's website restriction.","forbidden");
+    throw new ApiError("YouTube returned an error ("+r.status+").","http"); }
+  return j;
+}
+const Data={
+  async resolveChannel(input){
+    input=input.trim(); let m;
+    const p={part:"snippet,contentDetails"};
+    if((m=input.match(/(UC[\w-]{22})/))) p.id=m[1];
+    else if((m=input.match(/@([\w.\-]+)/))) p.forHandle="@"+m[1];
+    else p.forHandle="@"+input.replace(/^.*youtube\.com\//,"").replace(/[^\w.\-]/g,"");
+    const j=await yt("channels",p); const c=j.items&&j.items[0]; if(!c) throw new ApiError("Couldn't find that channel.","notfound");
+    return this.chFromItem(c);
+  },
+  chFromItem(c){ return {id:c.id, title:decode(c.snippet.title), handle:c.snippet.customUrl||"", thumb:c.snippet.thumbnails?.default?.url||"", uploads:c.contentDetails?.relatedPlaylists?.uploads||("UU"+c.id.slice(2)), topic:""}; },
+  async details(ids){
+    const out={}; ids=[...new Set(ids)].filter(Boolean);
+    for(let i=0;i<ids.length;i+=50){
+      const j=await yt("videos",{part:"snippet,contentDetails,status",id:ids.slice(i,i+50).join(","),maxResults:50});
+      (j.items||[]).forEach(v=>{ out[v.id]={id:v.id,title:decode(v.snippet.title),ch:v.snippet.channelId,chTitle:decode(v.snippet.channelTitle),at:v.snippet.publishedAt,
+        thumb:(v.snippet.thumbnails?.high||v.snippet.thumbnails?.medium||v.snippet.thumbnails?.default||{}).url||"",dur:isoDur(v.contentDetails.duration),
+        embed:v.status?.embeddable!==false, live:v.snippet.liveBroadcastContent!=="none", desc:(v.snippet.description||"").slice(0,600)}; });
+    }
+    Object.assign(S.videos,out); return out;
+  },
+  async uploads(ch, n=8){
+    const k="up:"+ch.id; const hit=cache.get(k,30*60e3); if(hit) return hit;
+    const j=await yt("playlistItems",{part:"contentDetails",playlistId:ch.uploads,maxResults:n});
+    const ids=(j.items||[]).map(x=>x.contentDetails.videoId); cache.set(k,ids); return ids;
+  },
+  async feed(force){
+    if(force) S.channels.forEach(c=>{ try{ localStorage.removeItem("swc:up:"+c.id); }catch(e){} });
+    const lists=await Promise.allSettled(S.channels.map(c=>this.uploads(c)));
+    const errs=lists.filter(r=>r.status==="rejected").map(r=>r.reason);
+    if(errs.length===lists.length && errs.length) throw errs[0];
+    const ids=lists.flatMap(r=>r.status==="fulfilled"?r.value:[]);
+    const missing=ids.filter(id=>!S.videos[id]); if(missing.length) await this.details(missing);
+    save(); return ids.map(id=>S.videos[id]).filter(Boolean);
+  },
+  async search(q,type="video"){
+    const k="s:"+type+":"+q.toLowerCase(); const hit=cache.get(k,24*3600e3);
+    if(hit){ if(type==="video"){ const miss=hit.filter(id=>!S.videos[id]); if(miss.length) await this.details(miss); } return hit; }
+    const j=await yt("search",{part:"snippet",type,q,maxResults:type==="video"?15:6,safeSearch:"moderate"});
+    let res;
+    if(type==="video"){ res=(j.items||[]).map(x=>x.id.videoId); await this.details(res); }
+    else { const ids=(j.items||[]).map(x=>x.id.channelId); const c=ids.length?await yt("channels",{part:"snippet,contentDetails",id:ids.join(",")}):{items:[]}; res=(c.items||[]).map(x=>this.chFromItem(x)); }
+    cache.set(k,res); save(); return res;
+  }
+};
+const isShort=v=>v.dur>0&&v.dur<=180||/#shorts?\b/i.test(v.title);
+
+/* ================= player ================= */
+let P=null, pReady=false, pendingId=null, tick=null;
+function loadYT(){ if(window.YT&&YT.Player) return Promise.resolve(); if(loadYT.p) return loadYT.p;
+  loadYT.p=new Promise(res=>{ window.onYouTubeIframeAPIReady=res; const s=document.createElement("script"); s.src="https://www.youtube.com/iframe_api"; s.onerror=()=>toast("Couldn't load the YouTube player."); document.head.appendChild(s); }); return loadYT.p; }
+async function play(id){
+  const v=S.videos[id]; if(v&&v.embed===false){ toast("This video can't be played outside YouTube."); return; }
+  if(overLimit()){ showLimit(); return; }
+  ui.cur=id; document.body.classList.add("watching"); $("#dock").classList.add("on"); $("#dockTitle").textContent=v?v.title:"";
+  const h=S.hist[id]||{}; const start=(h.t>10 && (!v||h.t<v.dur-20))? Math.floor(h.t):0;
+  if(window.__MOCK){ renderWatch(); return; }
+  await loadYT();
+  if(!P){ pendingId={id,start}; P=new YT.Player("player",{videoId:id,playerVars:{playsinline:1,rel:0,start,autoplay:1,origin:location.origin},
+      events:{onReady:()=>{ pReady=true; try{ P.setPlaybackRate(S.set.speed); P.playVideo(); }catch(e){} },onStateChange:onState,onError:e=>toast(e.data===101||e.data===150?"The owner doesn't allow this video to play here.":"Playback error.")}}); }
+  else if(pReady){ P.loadVideoById({videoId:id,startSeconds:start}); setTimeout(()=>{ try{ P.setPlaybackRate(S.set.speed); }catch(e){} },500); }
+  renderWatch(); window.scrollTo({top:0});
+}
+function onState(e){ if(e.data===YT.PlayerState.ENDED && ui.cur){ const h=S.hist[ui.cur]; if(h) h.done=true; save(); const nx=S.later.find(x=>x!==ui.cur); if(nx) toast("Up next in Watch later: "+(S.videos[nx]?.title||"next video")); } }
+function curTime(){ try{ return P&&pReady? P.getCurrentTime() : 0; }catch(e){ return 0; } }
+function isPlaying(){ try{ return P&&pReady&&P.getPlayerState()===1; }catch(e){ return false; } }
+function closePlayer(){ try{ P&&pReady&&P.stopVideo(); }catch(e){} ui.cur=null; $("#dock").classList.remove("on"); document.body.classList.remove("watching"); render(); }
+// watch-time + resume tracking
+setInterval(()=>{
+  if(document.hidden||!ui.cur||!isPlaying()) return;
+  const k=dayKey(); S.stats[k]=(S.stats[k]||0)+1;
+  const h=S.hist[ui.cur]=S.hist[ui.cur]||{t:0,sec:0,at:0}; h.t=curTime(); h.sec++; h.at=Date.now();
+  if(S.stats[k]%5===0) save();
+  if(overLimit()){ try{ P.pauseVideo(); }catch(e){} save(); showLimit(); }
+},1000);
+// policy: never keep playing when the app isn't on screen
+document.addEventListener("visibilitychange",()=>{ if(document.hidden){ try{ P&&pReady&&P.pauseVideo(); }catch(e){} save(); } });
+
+/* ================= daily limit ================= */
+const limitSec=()=>(S.set.limitMin+(S.extra[dayKey()]||0))*60;
+const overLimit=()=>S.set.limitMin>0 && (S.stats[dayKey()]||0)>=limitSec();
+function showLimit(){
+  const el=$("#limit"); el.innerHTML=`<div style="max-width:360px"><div class="big">🌿</div><h2 id="limitT">That's today's ${S.set.limitMin} minutes</h2>
+   <p class="muted">You set this limit to protect your time. Notes and your library are still open.</p>
+   <button class="btn block" id="lmDone" style="margin-top:16px">I'm done for today</button>
+   <button class="btn ghost block" id="lmMore" style="margin-top:8px">5 more minutes</button></div>`;
+  el.classList.add("on"); $("#lmDone").focus();
+  $("#lmDone").onclick=()=>{ el.classList.remove("on"); closePlayer(); };
+  $("#lmMore").onclick=()=>{ const k=dayKey(); S.extra[k]=(S.extra[k]||0)+5; save(); el.classList.remove("on"); try{ P.playVideo(); }catch(e){} };
+}
+
+/* ================= rendering ================= */
+const main=$("#main");
+function setTab(t){ ui.tab=t; $$("#nav button").forEach(b=>b.toggleAttribute("aria-current",b.dataset.tab===t)||b.dataset.tab===t&&b.setAttribute("aria-current","page")); render(); if(!ui.cur) window.scrollTo({top:0}); try{ history.replaceState(null,"","#"+t); }catch(e){} }
+function render(){
+  $$("#nav button").forEach(b=>{ if(b.dataset.tab===ui.tab) b.setAttribute("aria-current","page"); else b.removeAttribute("aria-current"); });
+  if(!S.onboarded){ $("#nav").style.display="none"; main.innerHTML=onboardView(); bindOnboard(); return; }
+  $("#nav").style.display="";
+  ({feed:renderFeed,search:renderSearch,library:renderLibrary,you:renderYou,watch:renderWatch})[ui.tab]();
+}
+const logoSVG=`<svg width="26" height="26" viewBox="0 0 26 26" aria-hidden="true"><circle cx="13" cy="13" r="11" fill="none" stroke="var(--c-accent)" stroke-width="2.4"/><path d="M7 14.5c2-2.4 4-2.4 6 0s4 2.4 6 0" fill="none" stroke="var(--c-accent)" stroke-width="2.4" stroke-linecap="round"/></svg>`;
+function header(title, right=""){ return `<div class="top"><div class="logo">${title==="Stillwatch"?logoSVG:""}<span>${esc(title)}</span></div>${right}</div>`; }
+function todayLine(){ const used=S.stats[dayKey()]||0; if(!S.set.limitMin) return ""; const pct=Math.min(100,used/limitSec()*100);
+  return `<div class="card" style="padding:12px 16px"><div class="row between sm"><span><b>${fmtMin(used)}</b> <span class="muted">of ${fmtMin(limitSec())} today</span></span><span class="muted xs">${pct>=100?"Limit reached":fmtMin(limitSec()-used)+" left"}</span></div><div class="meter"><i class="${pct>=100?'over':''}" style="width:${pct}%"></i></div></div>`; }
+
+function vcard(v){
+  const h=S.hist[v.id]; const pct=h&&v.dur? Math.min(100,h.t/v.dur*100):0; const ch=S.channels.find(c=>c.id===v.ch);
+  return `<article><button class="vcard" data-play="${v.id}" aria-label="Play ${esc(v.title)}">
+    <div class="thumb"><img loading="lazy" src="${esc(v.thumb)}" alt="">${v.dur?`<span class="dur">${v.live?"LIVE":fmtT(v.dur)}</span>`:""}${pct>2?`<span class="prog" style="width:${pct}%"></span>`:""}</div></button>
+    <div class="vmeta">${ch&&ch.thumb?`<img class="avatar" src="${esc(ch.thumb)}" alt="">`:""}<div style="min-width:0;flex:1"><button class="tt" data-play="${v.id}" style="text-align:left">${esc(v.title)}</button>
+      <div class="xs muted" style="margin-top:2px">${esc(v.chTitle)} · ${ago(v.at)}${S.later.includes(v.id)?" · ⏱ saved":""}${S.notes[v.id]?.length?" · 📝 "+S.notes[v.id].length:""}</div></div>
+      <button class="more" data-more="${v.id}" aria-label="More options">⋯</button></div></article>`;
+}
+const skeleton=n=>`<div class="vlist">${Array.from({length:n},()=>`<div><div class="skel" style="aspect-ratio:16/9"></div><div class="skel" style="height:14px;margin-top:10px;width:80%"></div><div class="skel" style="height:11px;margin-top:6px;width:45%"></div></div>`).join("")}</div>`;
+function errorBox(e){ const nokey=e&&(e.code==="nokey"||e.code==="badkey");
+  return `<div class="empty"><h3>${nokey?"Connect YouTube":"Couldn't load videos"}</h3><p>${esc(e?.message||"Something went wrong.")}</p>${nokey?`<button class="btn" data-goto="you">Add API key</button>`:`<button class="btn ghost" data-retry>Try again</button>`}</div>`; }
+
+/* ----- Feed (S02) ----- */
+let feedCache=null;
+async function renderFeed(force){
+  const topics=["All",...new Set(S.channels.map(c=>c.topic).filter(Boolean))];
+  main.innerHTML = header("Stillwatch",`<button class="chip" id="refresh" aria-label="Refresh feed">↻ Refresh</button>`) + todayLine()
+    + (topics.length>1?`<div class="chips" role="group" aria-label="Topics">${topics.map(t=>`<button class="chip" aria-pressed="${ui.topic===t}" data-topic="${esc(t)}">${esc(t)}</button>`).join("")}</div>`:"")
+    + `<div id="feedBody" style="margin-top:12px">${S.channels.length?skeleton(4):""}</div>`;
+  bindCommon();
+  $$("[data-topic]").forEach(b=>b.onclick=()=>{ ui.topic=b.dataset.topic; renderFeed(); });
+  $("#refresh").onclick=()=>{ feedCache=null; renderFeed(true); };
+  const body=$("#feedBody");
+  if(!S.channels.length){ body.innerHTML=`<div class="empty"><h3>Your feed is empty, on purpose</h3><p>Only channels you choose show up here. No recommendations, no Shorts.</p><button class="btn" data-goto="library" data-lib="channels">Add channels</button></div>`; bindCommon(); return; }
+  try{
+    if(!feedCache||force) feedCache=await Data.feed(force);
+    let vids=feedCache.slice();
+    if(S.set.hideShorts) vids=vids.filter(v=>!isShort(v));
+    if(ui.topic!=="All"){ const ids=new Set(S.channels.filter(c=>c.topic===ui.topic).map(c=>c.id)); vids=vids.filter(v=>ids.has(v.ch)); }
+    vids.sort((a,b)=>new Date(b.at)-new Date(a.at));
+    if(ui.tab!=="feed") return;
+    body.innerHTML = vids.length? `<div class="vlist">${vids.map(vcard).join("")}</div><p class="xs muted" style="text-align:center;margin-top:20px">That's everything new from your ${S.channels.length} channel${S.channels.length>1?"s":""}. Nothing else to scroll.</p>`
+      : `<div class="empty"><h3>Nothing new here</h3><p>No recent uploads${ui.topic!=="All"?" in "+esc(ui.topic):""}.</p></div>`;
+  }catch(e){ if(ui.tab==="feed") body.innerHTML=errorBox(e); }
+  bindCommon(); $$("[data-retry]").forEach(b=>b.onclick=()=>renderFeed(true));
+}
+
+/* ----- Search (S03) ----- */
+async function renderSearch(){
+  main.innerHTML = header("Search") + `<form id="sf" role="search" class="row"><label for="q" class="sr" style="position:absolute;left:-9999px">Search YouTube</label><input id="q" type="search" enterkeyhint="search" placeholder="Search with intent…" value="${esc(ui.q)}" autocomplete="off"><button class="btn" style="padding:12px 16px">Go</button></form>
+   <p class="xs muted" style="margin:8px 4px 0">Search runs only when you press Go: no autocomplete, no trending.</p><div id="sres"></div>`;
+  $("#sf").onsubmit=e=>{ e.preventDefault(); ui.q=$("#q").value.trim(); if(ui.q) doSearch(); };
+  if(ui.q) doSearch(); bindCommon();
+}
+async function doSearch(){
+  const box=$("#sres"); box.innerHTML=`<div style="margin-top:16px">${skeleton(3)}</div>`;
+  try{
+    const [vids,chs]=await Promise.all([Data.search(ui.q,"video"),Data.search(ui.q,"channel").catch(()=>[])]);
+    if(ui.tab!=="search") return;
+    let vs=vids.map(id=>S.videos[id]).filter(Boolean); if(S.set.hideShorts) vs=vs.filter(v=>!isShort(v));
+    box.innerHTML=(chs.length?`<div class="label">Channels</div><div class="card" style="padding:4px 16px">${chs.slice(0,3).map(c=>chRow(c)).join("")}</div>`:"")
+      +`<div class="label">Videos</div>`+(vs.length?`<div class="vlist">${vs.map(vcard).join("")}</div>`:`<div class="empty"><p>No videos found.</p></div>`);
+    $$("[data-follow]").forEach(b=>b.onclick=()=>{ const c=chs.find(x=>x.id===b.dataset.follow); toggleFollow(c); doSearch(); });
+  }catch(e){ box.innerHTML=errorBox(e); }
+  bindCommon(); $$("[data-retry]").forEach(b=>b.onclick=doSearch);
+}
+function chRow(c){ const f=S.channels.some(x=>x.id===c.id);
+  return `<div class="listrow">${c.thumb?`<img class="avatar" src="${esc(c.thumb)}" alt="">`:""}<div style="flex:1;min-width:0"><b>${esc(c.title)}</b><div class="xs muted">${esc(c.handle||"")}</div></div><button class="chip" aria-pressed="${f}" data-follow="${c.id}">${f?"Following":"Follow"}</button></div>`; }
+function toggleFollow(c){ const i=S.channels.findIndex(x=>x.id===c.id); if(i>=0){ S.channels.splice(i,1); toast("Unfollowed "+c.title); } else { S.channels.push(c); toast("Following "+c.title); } feedCache=null; save(); }
+
+/* ----- Watch panel (S04) ----- */
+function renderWatch(){
+  if(!ui.cur){ setTab("feed"); return; }
+  ui.tab="watch";
+  const id=ui.cur, v=S.videos[id]||{title:"",chTitle:"",dur:0}; const notes=(S.notes[id]||[]).slice().sort((a,b)=>a.t-b.t); const bms=S.bookmarks[id]||[];
+  main.innerHTML=`<h2 style="font-size:var(--f-lg);line-height:1.3">${esc(v.title)}</h2><div class="sm muted" style="margin:4px 0 12px">${esc(v.chTitle)}${v.at?" · "+ago(v.at):""}</div>
+   <div class="speeds" role="group" aria-label="Playback speed">${[0.75,1,1.25,1.5,2].map(r=>`<button aria-pressed="${S.set.speed===r}" data-speed="${r}">${r}×</button>`).join("")}</div>
+   <div class="actions">
+     <button data-act="back10"><span>↺</span>10s</button>
+     <button data-act="bm"><span>🔖</span>Bookmark</button>
+     <button data-act="later" aria-pressed="${S.later.includes(id)}"><span>⏱</span>${S.later.includes(id)?"Saved":"Later"}</button>
+     <button data-act="fwd10"><span>↻</span>10s</button></div>
+   <div class="label">Notes</div>
+   <form id="nf" class="card" style="padding:12px"><label for="nt" class="xs muted">Note at <span id="nowT">${fmtT(curTime())}</span>. Your timestamp is captured when you start typing.</label>
+     <textarea id="nt" rows="2" placeholder="What's worth remembering?" style="margin-top:6px"></textarea><div class="row" style="justify-content:flex-end;margin-top:8px"><button class="btn" style="padding:9px 16px">Save note</button></div></form>
+   <div class="card" style="padding:4px 16px" id="nlist">${notes.length?notes.map((n,i)=>`<div class="note"><button class="ts" data-seek="${n.t}">${fmtT(n.t)}</button><div style="white-space:pre-wrap;flex:1">${esc(n.text)}</div><button class="x" data-delnote="${n.c}" aria-label="Delete note">✕</button></div>`).join(""):`<p class="sm muted" style="padding:8px 0">No notes yet. Tap a timestamp later to jump back to that moment.</p>`}</div>
+   ${bms.length?`<div class="label">Bookmarks</div><div class="row wrap">${bms.map(b=>`<button class="chip" data-seek="${b}">🔖 ${fmtT(b)}</button>`).join("")}</div>`:""}
+   ${notes.length?`<button class="btn ghost block" id="copyNotes" style="margin-top:12px">Copy notes</button>`:""}
+   ${S.later.filter(x=>x!==id).length?`<div class="label">Up next · Watch later</div><div class="card" style="padding:4px 16px">${S.later.filter(x=>x!==id).slice(0,3).map(x=>miniRow(x)).join("")}</div>`:""}
+   ${v.desc?`<details class="card"><summary class="sm" style="font-weight:700;cursor:pointer">Description</summary><p class="sm muted" style="white-space:pre-wrap">${esc(v.desc)}</p></details>`:""}`;
+  let capT=null; const nt=$("#nt");
+  nt.addEventListener("input",()=>{ if(capT===null){ capT=curTime(); $("#nowT").textContent=fmtT(capT); } });
+  $("#nf").onsubmit=e=>{ e.preventDefault(); const text=nt.value.trim(); if(!text) return; (S.notes[id]=S.notes[id]||[]).push({t:Math.floor(capT??curTime()),text,c:Date.now()}); save(); toast("Note saved at "+fmtT(capT??curTime())); renderWatch(); };
+  $$("[data-speed]").forEach(b=>b.onclick=()=>{ S.set.speed=+b.dataset.speed; save(); try{ P.setPlaybackRate(S.set.speed); }catch(e){} $$("[data-speed]").forEach(x=>x.setAttribute("aria-pressed",x===b)); });
+  $$("[data-act]").forEach(b=>b.onclick=()=>{ const a=b.dataset.act, t=curTime();
+    if(a==="back10") try{ P.seekTo(Math.max(0,t-10),true); }catch(e){}
+    if(a==="fwd10") try{ P.seekTo(t+10,true); }catch(e){}
+    if(a==="bm"){ (S.bookmarks[id]=S.bookmarks[id]||[]).push(Math.floor(t)); save(); toast("Bookmarked "+fmtT(t)); renderWatch(); }
+    if(a==="later"){ toggleLater(id); renderWatch(); } });
+  const cp=$("#copyNotes"); if(cp) cp.onclick=async()=>{ const txt=`${v.title}\nhttps://youtu.be/${id}\n\n`+notes.map(n=>`[${fmtT(n.t)}] ${n.text}`).join("\n"); try{ await navigator.clipboard.writeText(txt); toast("Notes copied"); }catch(e){ toast("Couldn't copy"); } };
+  $$("[data-delnote]").forEach(b=>b.onclick=()=>{ S.notes[id]=(S.notes[id]||[]).filter(n=>String(n.c)!==b.dataset.delnote); save(); renderWatch(); });
+  bindCommon();
+}
+function miniRow(id){ const v=S.videos[id]; if(!v) return ""; return `<button class="listrow" data-play="${id}"><div class="thumb mini"><img src="${esc(v.thumb)}" alt="">${v.dur?`<span class="dur">${fmtT(v.dur)}</span>`:""}</div><div style="min-width:0;flex:1"><div class="sm" style="font-weight:650;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">${esc(v.title)}</div><div class="xs muted">${esc(v.chTitle)}</div></div></button>`; }
+function toggleLater(id){ if(S.later.includes(id)){ S.later=S.later.filter(x=>x!==id); toast("Removed from Watch later"); } else { S.later.push(id); toast("Saved to Watch later"); } save(); }
+
+/* ----- Library (S05/S06) ----- */
+function renderLibrary(){
+  const tabs=[["later","Watch later"],["notes","Notes"],["history","History"],["channels","Channels"]];
+  let body="";
+  if(ui.libTab==="later") body=S.later.length?`<div class="card" style="padding:4px 16px">${S.later.map(miniRow).join("")}</div>`:`<div class="empty"><h3>Nothing saved</h3><p>Tap ⋯ on any video and choose Watch later.</p></div>`;
+  if(ui.libTab==="notes"){ const ids=Object.keys(S.notes).filter(id=>S.notes[id]?.length);
+    body=ids.length?ids.map(id=>{ const v=S.videos[id]||{title:id}; return `<div class="card"><button data-play="${id}" style="text-align:left"><b>${esc(v.title)}</b></button>${S.notes[id].slice().sort((a,b)=>a.t-b.t).map(n=>`<div class="note"><button class="ts" data-playat="${id}" data-t="${n.t}">${fmtT(n.t)}</button><div style="white-space:pre-wrap">${esc(n.text)}</div></div>`).join("")}</div>`; }).join(""):`<div class="empty"><h3>No notes yet</h3><p>Notes you take while watching collect here, with timestamps.</p></div>`; }
+  if(ui.libTab==="history"){ const ids=Object.keys(S.hist).filter(id=>S.videos[id]).sort((a,b)=>S.hist[b].at-S.hist[a].at).slice(0,40);
+    body=ids.length?`<div class="card" style="padding:4px 16px">${ids.map(miniRow).join("")}</div><button class="btn ghost block" id="clrHist">Clear history</button>`:`<div class="empty"><p>Videos you watch appear here.</p></div>`; }
+  if(ui.libTab==="channels"){
+    body=`<form id="addCh" class="card"><label for="chIn" class="sm" style="font-weight:700">Follow a channel</label><div class="row" style="margin-top:8px"><input id="chIn" placeholder="@handle or channel link" autocapitalize="off"><button class="btn" style="padding:12px 16px">Add</button></div><p class="xs muted" style="margin:8px 0 0">Tip: copy the channel link from YouTube and paste it here.</p></form>`
+      +(S.channels.length?`<div class="card" style="padding:4px 16px">${S.channels.map(c=>`<div class="listrow">${c.thumb?`<img class="avatar" src="${esc(c.thumb)}" alt="">`:""}<div style="flex:1;min-width:0"><b>${esc(c.title)}</b><div class="xs muted">${esc(c.handle)}</div></div>
+         <select data-topicsel="${c.id}" aria-label="Topic for ${esc(c.title)}" style="width:auto;padding:6px 8px;font-size:13px"><option value="">No topic</option>${S.topics.map(t=>`<option ${c.topic===t?"selected":""}>${esc(t)}</option>`).join("")}</select>
+         <button class="chip" data-unf="${c.id}" aria-label="Unfollow ${esc(c.title)}">✕</button></div>`).join("")}</div>
+         <button class="chip" id="addTopic">+ New topic</button>`:`<div class="empty"><p>No channels yet. Add the few that are actually worth your time.</p></div>`);
+  }
+  main.innerHTML=header("Library")+`<div class="seg" role="group" aria-label="Library sections">${tabs.map(([k,l])=>`<button aria-pressed="${ui.libTab===k}" data-lib="${k}">${l}</button>`).join("")}</div><div style="margin-top:12px">${body}</div>`;
+  $$("[data-lib]").forEach(b=>b.onclick=()=>{ ui.libTab=b.dataset.lib; renderLibrary(); });
+  $$("[data-playat]").forEach(b=>b.onclick=()=>{ S.hist[b.dataset.playat]={...(S.hist[b.dataset.playat]||{}),t:+b.dataset.t,at:Date.now()}; play(b.dataset.playat); });
+  const ac=$("#addCh"); if(ac) ac.onsubmit=async e=>{ e.preventDefault(); const val=$("#chIn").value.trim(); if(!val) return; const btn=ac.querySelector("button"); btn.disabled=true; btn.textContent="…";
+    try{ const c=await Data.resolveChannel(val); if(S.channels.some(x=>x.id===c.id)) toast("Already following"); else { S.channels.push(c); feedCache=null; save(); toast("Following "+c.title); } renderLibrary(); }catch(err){ toast(err.message); btn.disabled=false; btn.textContent="Add"; } };
+  $$("[data-unf]").forEach(b=>b.onclick=()=>{ const c=S.channels.find(x=>x.id===b.dataset.unf); toggleFollow(c); renderLibrary(); });
+  $$("[data-topicsel]").forEach(s=>s.onchange=()=>{ S.channels.find(x=>x.id===s.dataset.topicsel).topic=s.value; feedCache=null; save(); });
+  const at=$("#addTopic"); if(at) at.onclick=()=>{ openSheet(`<h3>New topic</h3><form id="tf" style="margin-top:12px"><input id="tIn" placeholder="e.g. Business" maxlength="24"><button class="btn block" style="margin-top:10px">Add topic</button></form>`); $("#tIn").focus(); $("#tf").onsubmit=e=>{ e.preventDefault(); const t=$("#tIn").value.trim(); if(t&&!S.topics.includes(t)) S.topics.push(t); save(); closeSheet(); renderLibrary(); }; };
+  const ch=$("#clrHist"); if(ch) ch.onclick=()=>{ S.hist={}; save(); renderLibrary(); };
+  bindCommon();
+}
+
+/* ----- You: stats + settings (S07) ----- */
+function renderYou(){
+  const days=[...Array(7)].map((_,i)=>{ const d=new Date(); d.setDate(d.getDate()-6+i); return {k:dayKey(d),l:"SMTWTFS"[d.getDay()]}; });
+  const vals=days.map(d=>S.stats[d.k]||0), max=Math.max(60,...vals,S.set.limitMin*60), week=vals.reduce((a,b)=>a+b,0);
+  const notesN=Object.values(S.notes).reduce((a,n)=>a+n.length,0);
+  main.innerHTML=header("You")+`
+   <div class="stats"><div class="stat"><div class="v">${fmtMin(S.stats[dayKey()]||0)}</div><div class="k">today</div></div><div class="stat"><div class="v">${fmtMin(week)}</div><div class="k">this week</div></div><div class="stat"><div class="v">${notesN}</div><div class="k">notes taken</div></div></div>
+   <div class="card"><div class="row between"><b>Last 7 days</b><span class="xs muted">limit ${S.set.limitMin?S.set.limitMin+"m/day":"off"}</span></div>
+     <div class="bars" aria-label="Watch time per day">${days.map((d,i)=>`<div><i class="${S.set.limitMin&&vals[i]>S.set.limitMin*60?'over':''}" style="height:${vals[i]/max*100}%" title="${fmtMin(vals[i])}"></i><span>${d.l}</span></div>`).join("")}</div></div>
+   <div class="label">Daily limit</div>
+   <div class="card"><div class="row between"><label for="lim"><b id="limV">${S.set.limitMin?S.set.limitMin+" minutes":"No limit"}</b></label></div>
+     <input id="lim" type="range" min="0" max="240" step="15" value="${S.set.limitMin}" style="padding:0;margin-top:10px;background:none;border:0" aria-label="Daily limit in minutes"><p class="xs muted" style="margin:6px 0 0">When you hit it, playback pauses. You can add 5 minutes at a time.</p></div>
+   <div class="label">Viewing</div>
+   <div class="card" style="padding:4px 16px">
+     <button class="toggle" role="switch" aria-checked="${S.set.hideShorts}" data-tog="hideShorts"><span>Hide Shorts and clips under 3 min</span><span class="sw"></span></button>
+   </div>
+   <div class="label">YouTube connection</div>
+   <div class="card"><label for="key" class="sm" style="font-weight:700">YouTube Data API key</label>
+     <div class="row" style="margin-top:8px"><input id="key" type="password" autocomplete="off" placeholder="AIza…" value="${esc(S.set.apiKey)}"><button class="btn" id="saveKey" style="padding:12px 16px">Save</button></div>
+     <p class="xs muted" style="margin:8px 0 0">${S.set.apiKey?"✓ Key saved on this device.":"Needed to load your feed and search."} <button class="xs" id="keyHelp" style="color:var(--c-accent);text-decoration:underline">How to get one</button></p></div>
+   <div class="label">Data</div>
+   <div class="card" style="padding:4px 16px">
+     <button class="toggle" id="exp"><span>Export backup</span><span class="muted">↓</span></button>
+     <label class="toggle" for="imp" style="cursor:pointer"><span>Import backup</span><span class="muted">↑</span></label><input id="imp" type="file" accept="application/json" hidden>
+     <button class="toggle" id="reset" style="color:var(--c-danger)"><span>Reset everything</span></button></div>
+   <p class="xs muted" style="text-align:center;margin-top:20px">Stillwatch plays videos through YouTube's official player. Background play and picture-in-picture need YouTube Premium.</p>`;
+  $("#lim").oninput=e=>{ S.set.limitMin=+e.target.value; $("#limV").textContent=S.set.limitMin?S.set.limitMin+" minutes":"No limit"; };
+  $("#lim").onchange=()=>{ save(); renderYou(); };
+  $$("[data-tog]").forEach(b=>b.onclick=()=>{ S.set[b.dataset.tog]=!S.set[b.dataset.tog]; save(); renderYou(); });
+  $("#saveKey").onclick=async()=>{ S.set.apiKey=$("#key").value.trim(); save(); feedCache=null;
+    if(!S.set.apiKey){ toast("Key removed"); return renderYou(); }
+    try{ await yt("videos",{part:"id",id:"M7lc1UVf-VE"}); toast("Key works ✓"); }catch(e){ toast(e.message); } renderYou(); };
+  $("#keyHelp").onclick=keyGuide;
+  $("#exp").onclick=()=>{ const b=new Blob([JSON.stringify(S,null,1)],{type:"application/json"}); const a=document.createElement("a"); a.href=URL.createObjectURL(b); a.download="stillwatch-backup-"+dayKey()+".json"; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),2000); };
+  $("#imp").onchange=async e=>{ try{ const d=JSON.parse(await e.target.files[0].text()); if(!d.set) throw 0; S=Object.assign(blank(),d,{set:Object.assign(blank().set,d.set)}); save(); feedCache=null; toast("Backup restored"); renderYou(); }catch(_){ toast("That file isn't a Stillwatch backup"); } };
+  $("#reset").onclick=()=>{ openSheet(`<h3>Reset everything?</h3><p class="muted">Channels, notes, history and settings on this device will be deleted.</p><div class="row"><button class="btn ghost" style="flex:1" id="rN">Cancel</button><button class="btn" style="flex:1;background:var(--c-danger)" id="rY">Reset</button></div>`); $("#rN").onclick=closeSheet; $("#rY").onclick=()=>{ localStorage.clear(); S=blank(); closeSheet(); closePlayer(); render(); }; };
+}
+function keyGuide(){
+  openSheet(`<h3>Get a free YouTube API key</h3><p class="sm muted">Takes about 5 minutes. It's free, and it lets Stillwatch load your channels and search.</p>
+   <ol class="steps sm">
+    <li>Open <a href="https://console.cloud.google.com/projectcreate" target="_blank" rel="noopener">Google Cloud → New project</a>, name it <b>stillwatch</b>, tap Create.</li>
+    <li>Open <a href="https://console.cloud.google.com/apis/library/youtube.googleapis.com" target="_blank" rel="noopener">YouTube Data API v3</a> and tap <b>Enable</b>.</li>
+    <li>Go to <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener">Credentials</a> → <b>Create credentials → API key</b>.</li>
+    <li>Tap the new key → <b>Application restrictions: Websites</b> → add <code>${esc(location.origin)}/*</code>. Under API restrictions choose <b>YouTube Data API v3</b>. Save.</li>
+    <li>Copy the key, paste it in You → YouTube connection, and tap Save.</li></ol>
+   <p class="xs muted">The free quota covers normal personal use. Each search costs a bit more, so Stillwatch caches results for a day.</p>`);
+}
+
+/* ----- Onboarding (S01) ----- */
+let ob=0;
+function onboardView(){
+  if(ob===0) return `<div style="min-height:80vh;display:flex;flex-direction:column;justify-content:center;max-width:460px;margin:0 auto">${logoSVG.replace('width="26" height="26"','width="64" height="64"')}
+    <h1 style="margin:20px 0 10px">Watch on purpose.</h1><p class="muted" style="font-size:17px">Stillwatch shows only the channels you pick. No recommendations, no Shorts, no comments, plus notes and a daily limit so you stay in control.</p>
+    <button class="btn block" id="obNext" style="margin-top:24px">Set it up</button></div>`;
+  return `<div style="max-width:460px;margin:10vh auto 0"><h2>How much YouTube a day?</h2><p class="muted">Pick a limit you'd be proud of. You can change it anytime.</p>
+    <div class="row wrap" style="margin:16px 0">${[30,45,60,90,120,0].map(m=>`<button class="chip" aria-pressed="${S.set.limitMin===m}" data-m="${m}">${m?m+" min":"No limit"}</button>`).join("")}</div>
+    <button class="btn block" id="obDone">Continue</button></div>`;
+}
+function bindOnboard(){
+  const n=$("#obNext"); if(n) n.onclick=()=>{ ob=1; render(); };
+  $$("[data-m]").forEach(b=>b.onclick=()=>{ S.set.limitMin=+b.dataset.m; render(); });
+  const d=$("#obDone"); if(d) d.onclick=()=>{ S.onboarded=true; save(); ui.tab=S.set.apiKey?"library":"you"; if(ui.tab==="library") ui.libTab="channels"; render(); if(!S.set.apiKey) setTimeout(keyGuide,300); };
+}
+
+/* ================= shared bindings ================= */
+function bindCommon(){
+  $$("[data-play]").forEach(b=>b.onclick=()=>play(b.dataset.play));
+  $$("[data-more]").forEach(b=>b.onclick=()=>moreMenu(b.dataset.more));
+  $$("[data-seek]").forEach(b=>b.onclick=()=>{ try{ P.seekTo(+b.dataset.seek,true); P.playVideo(); }catch(e){} window.scrollTo({top:0,behavior:"smooth"}); });
+  $$("[data-goto]").forEach(b=>b.onclick=()=>{ if(b.dataset.lib) ui.libTab=b.dataset.lib; setTab(b.dataset.goto); });
+}
+function moreMenu(id){
+  const v=S.videos[id]; const ch=S.channels.find(c=>c.id===v.ch);
+  openSheet(`<b>${esc(v.title)}</b><div class="menu" style="margin-top:8px">
+    <button data-m="later">⏱ ${S.later.includes(id)?"Remove from":"Save to"} Watch later</button>
+    <button data-m="yt">↗ Open in YouTube app</button>
+    ${ch?`<button data-m="unf">✕ Unfollow ${esc(ch.title)}</button>`:""}</div>`);
+  $$("#sheetBody [data-m]").forEach(b=>b.onclick=()=>{ const m=b.dataset.m; closeSheet();
+    if(m==="later"){ toggleLater(id); render(); }
+    if(m==="yt") location.href="https://www.youtube.com/watch?v="+id;
+    if(m==="unf"){ toggleFollow(ch); render(); } });
+}
+const sheet=$("#sheet"), scrim=$("#scrim");
+function openSheet(h){ $("#sheetBody").innerHTML=h; scrim.classList.add("open"); requestAnimationFrame(()=>sheet.classList.add("open")); sheet.scrollTop=0; }
+function closeSheet(){ sheet.classList.remove("open"); scrim.classList.remove("open"); }
+scrim.onclick=closeSheet; document.addEventListener("keydown",e=>{ if(e.key==="Escape") closeSheet(); });
+let tt; function toast(m){ const t=$("#toast"); t.textContent=m; t.classList.add("show"); clearTimeout(tt); tt=setTimeout(()=>t.classList.remove("show"),2200); }
+$$("#nav button").forEach(b=>b.onclick=()=>setTab(b.dataset.tab));
+$("#dockClose").onclick=closePlayer;
+$("#dockOpen").onclick=()=>{ ui.tab="watch"; render(); };
+try{ const h=location.hash.slice(1); if(["feed","search","library","you"].includes(h)) ui.tab=h; }catch(e){}
+render();
+</script>
+</body>
+</html>
