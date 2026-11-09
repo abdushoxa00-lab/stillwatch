@@ -230,8 +230,14 @@ const Sync={
 function merge(L,R){
   if(!R||!R.set) return L;
   const newer=(R.updated||0)>(L.updated||0)? R : L, out={...blank(),...L};
-  ["set","channels","later","topics","onboarded"].forEach(k=>{ if(newer[k]!==undefined) out[k]=newer[k]; });
-  out.set={...blank().set,...newer.set};
+  // a freshly set-up device (no channels, no key) must never overwrite real data
+  const empty=x=>!(x.channels&&x.channels.length)&&!(x.set&&x.set.apiKey);
+  const src = empty(L)&&!empty(R) ? R : empty(R)&&!empty(L) ? L : newer;
+  ["set","channels","later","topics"].forEach(k=>{ if(src[k]!==undefined) out[k]=src[k]; });
+  out.onboarded=!!(L.onboarded||R.onboarded);
+  out.set={...blank().set,...src.set};
+  if(!out.set.apiKey) out.set.apiKey=(L.set&&L.set.apiKey)||(R.set&&R.set.apiKey)||"";
+  if(!out.channels.length) out.channels=(L.channels&&L.channels.length?L.channels:R.channels)||[];
   out.videos={...(R.videos||{}),...(L.videos||{})};
   const maxMap=(a={},b={})=>{ const o={...a}; for(const k in b) o[k]=Math.max(o[k]||0,b[k]||0); return o; };
   out.stats=maxMap(L.stats,R.stats); out.agg=maxMap(L.agg,R.agg); out.extra=maxMap(L.extra,R.extra);
