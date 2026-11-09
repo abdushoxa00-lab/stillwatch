@@ -164,7 +164,7 @@ const decode=s=>{ const t=document.createElement("textarea"); t.innerHTML=s; ret
 /* ================= state ================= */
 const KEY="stillwatch-v1";
 const blank=()=>({v:1,onboarded:false,set:{apiKey:"",limitMin:60,hideShorts:true,speed:1,name:""},channels:[],topics:["Learning","Japanese","Fitness","Music"],
-  videos:{},later:[],notes:{},bookmarks:{},hist:{},stats:{},extra:{},updated:0});
+  videos:{},later:[],notes:{},bookmarks:{},hist:{},stats:{},extra:{},intent:{},kindStats:{},updated:0});
 let S=blank();
 try{ const raw=localStorage.getItem(KEY); if(raw){ const d=JSON.parse(raw); S=Object.assign(blank(),d,{set:Object.assign(blank().set,d.set||{})}); } }catch(e){}
 function save(){ S.updated=Date.now(); try{ localStorage.setItem(KEY,JSON.stringify(S)); }catch(e){} }
@@ -239,7 +239,49 @@ const isShort=v=>v.dur>0&&v.dur<=180||/#shorts?\b/i.test(v.title);
 let P=null, pReady=false, pendingId=null, tick=null;
 function loadYT(){ if(window.YT&&YT.Player) return Promise.resolve(); if(loadYT.p) return loadYT.p;
   loadYT.p=new Promise(res=>{ window.onYouTubeIframeAPIReady=res; const s=document.createElement("script"); s.src="https://www.youtube.com/iframe_api"; s.onerror=()=>toast("Couldn't load the YouTube player."); document.head.appendChild(s); }); return loadYT.p; }
+/* ================= intent check ================= */
+const MOTE_LEARN="https://claude.ai/artifact/WDCaHiuCfkUDiehCpffaHM#learn";
+const MANSON=[ // short teasers, written in our own words
+ ["Care about fewer things","Your attention is limited. Spend it on what you actually value."],
+ ["What pain do you want?","Every goal comes with a struggle. Pick the one you'd gladly sign up for."],
+ ["Fault vs. responsibility","It may not be your fault, but what you do next is still yours."],
+ ["The \"do something\" principle","Action creates motivation, not the other way round. Start tiny."],
+ ["The feedback loop from hell","Stop feeling bad about feeling bad. Accept the first feeling."],
+ ["The law of avoidance","We dodge whatever threatens how we see ourselves. Hold your identity loosely."]];
+let intentFor=null, cdT=null;
+function askIntent(id){
+  const v=S.videos[id]||{title:""};
+  openSheet(`<div class="xs muted" style="font-weight:700;text-transform:uppercase;letter-spacing:.08em">Before you press play</div>
+    <h3 style="margin:6px 0 4px">Why are you watching this?</h3><p class="sm muted" style="margin:0 0 14px">${esc(v.title)}</p>
+    <div class="row"><button class="btn block" id="inLearn" style="flex:1">📚 Learning</button><button class="btn ghost block" id="inFun" style="flex:1">🍿 Entertainment</button></div>
+    <button class="sm muted" id="inCancel" style="display:block;margin:14px auto 0">Never mind</button>`);
+  $("#inCancel").onclick=closeSheet;
+  $("#inLearn").onclick=()=>{
+    openSheet(`<h3>How will this help you learn?</h3><p class="sm muted">One honest sentence. It gets saved as the first note on this video so you can check yourself afterward.</p>
+      <form id="whyF"><label for="why" class="xs muted">I'm watching this to…</label><textarea id="why" rows="3" style="margin-top:6px" placeholder="e.g. understand how compound interest works for my finance class"></textarea>
+      <button class="btn block" id="whyGo" style="margin-top:12px" disabled>Start watching</button></form>`);
+    const w=$("#why"), go=$("#whyGo"); w.focus();
+    w.oninput=()=>{ go.disabled=w.value.trim().length<12; };
+    $("#whyF").onsubmit=e=>{ e.preventDefault(); const why=w.value.trim(); if(why.length<12) return;
+      S.intent[id]={kind:"learn",why,at:Date.now()};
+      (S.notes[id]=S.notes[id]||[]).push({t:0,text:"🎯 Why I'm watching: "+why,c:Date.now()}); save(); closeSheet(); intentFor=id; play(id); };
+  };
+  $("#inFun").onclick=()=>{
+    const m=MANSON[Math.floor(Math.random()*MANSON.length)];
+    openSheet(`<div style="text-align:center"><div style="font-size:44px">🤔</div><h3 style="margin:6px 0">Are you sure you wouldn't rather read Mark Manson?</h3></div>
+      <div class="card" style="margin-top:14px"><div class="xs muted" style="font-weight:700">MARK MANSON · 2-MIN READ</div><b style="display:block;margin:4px 0">${esc(m[0])}</b><div class="sm muted">${esc(m[1])}</div></div>
+      <a class="btn block" href="${MOTE_LEARN}" target="_blank" rel="noopener" id="readIt" style="text-decoration:none">📖 Read it in Mote</a>
+      <a class="btn ghost block" href="https://markmanson.net" target="_blank" rel="noopener" style="margin-top:8px;text-decoration:none">Browse markmanson.net</a>
+      <button class="btn ghost block" id="anyway" style="margin-top:8px" disabled>Watch anyway (10)</button>`);
+    $("#readIt").onclick=()=>{ S.kindStats.redirected=(S.kindStats.redirected||0)+1; save(); setTimeout(closeSheet,300); };
+    let n=10; const b=$("#anyway"); clearInterval(cdT);
+    cdT=setInterval(()=>{ n--; if(!$("#anyway")){ clearInterval(cdT); return; } if(n<=0){ clearInterval(cdT); b.disabled=false; b.textContent="Watch anyway"; } else b.textContent=`Watch anyway (${n})`; },1000);
+    b.onclick=()=>{ clearInterval(cdT); S.intent[id]={kind:"fun",at:Date.now()}; save(); closeSheet(); intentFor=id; play(id); };
+  };
+}
 async function play(id){
+  if(intentFor!==id && ui.cur!==id){ askIntent(id); return; }
+  intentFor=null;
   const v=S.videos[id]; if(v&&v.embed===false){ toast("This video can't be played outside YouTube."); return; }
   if(overLimit()){ showLimit(); return; }
   ui.cur=id; document.body.classList.add("watching"); $("#dock").classList.add("on"); $("#dockTitle").textContent=v?v.title:"";
@@ -259,6 +301,7 @@ function closePlayer(){ try{ P&&pReady&&P.stopVideo(); }catch(e){} ui.cur=null; 
 setInterval(()=>{
   if(document.hidden||!ui.cur||!isPlaying()) return;
   const k=dayKey(); S.stats[k]=(S.stats[k]||0)+1;
+  const kind=(S.intent[ui.cur]||{}).kind||"learn"; const ks=S.kindStats[k]=S.kindStats[k]||{learn:0,fun:0}; ks[kind]=(ks[kind]||0)+1;
   const h=S.hist[ui.cur]=S.hist[ui.cur]||{t:0,sec:0,at:0}; h.t=curTime(); h.sec++; h.at=Date.now();
   if(S.stats[k]%5===0) save();
   if(overLimit()){ try{ P.pauseVideo(); }catch(e){} save(); showLimit(); }
@@ -422,10 +465,15 @@ function renderYou(){
   const days=[...Array(7)].map((_,i)=>{ const d=new Date(); d.setDate(d.getDate()-6+i); return {k:dayKey(d),l:"SMTWTFS"[d.getDay()]}; });
   const vals=days.map(d=>S.stats[d.k]||0), max=Math.max(60,...vals,S.set.limitMin*60), week=vals.reduce((a,b)=>a+b,0);
   const notesN=Object.values(S.notes).reduce((a,n)=>a+n.length,0);
+  const wk=days.reduce((a,d)=>{ const s=S.kindStats[d.k]||{}; a.l+=s.learn||0; a.f+=s.fun||0; return a; },{l:0,f:0}); const tot=wk.l+wk.f;
   main.innerHTML=header("You")+`
    <div class="stats"><div class="stat"><div class="v">${fmtMin(S.stats[dayKey()]||0)}</div><div class="k">today</div></div><div class="stat"><div class="v">${fmtMin(week)}</div><div class="k">this week</div></div><div class="stat"><div class="v">${notesN}</div><div class="k">notes taken</div></div></div>
    <div class="card"><div class="row between"><b>Last 7 days</b><span class="xs muted">limit ${S.set.limitMin?S.set.limitMin+"m/day":"off"}</span></div>
      <div class="bars" aria-label="Watch time per day">${days.map((d,i)=>`<div><i class="${S.set.limitMin&&vals[i]>S.set.limitMin*60?'over':''}" style="height:${vals[i]/max*100}%" title="${fmtMin(vals[i])}"></i><span>${d.l}</span></div>`).join("")}</div></div>
+   <div class="card"><div class="row between"><b>Learning vs. entertainment</b><span class="xs muted">this week</span></div>
+     <div class="meter" style="height:12px;display:flex"><i style="width:${tot?wk.l/tot*100:0}%"></i><i style="width:${tot?wk.f/tot*100:0}%;background:var(--c-warn)"></i></div>
+     <div class="row between xs muted" style="margin-top:6px"><span>📚 ${fmtMin(wk.l)}</span><span>🍿 ${fmtMin(wk.f)}</span></div>
+     ${S.kindStats.redirected?`<div class="xs muted" style="margin-top:6px">You chose reading over watching ${S.kindStats.redirected} time${S.kindStats.redirected>1?"s":""}.</div>`:""}</div>
    <div class="label">Daily limit</div>
    <div class="card"><div class="row between"><label for="lim"><b id="limV">${S.set.limitMin?S.set.limitMin+" minutes":"No limit"}</b></label></div>
      <input id="lim" type="range" min="0" max="240" step="15" value="${S.set.limitMin}" style="padding:0;margin-top:10px;background:none;border:0" aria-label="Daily limit in minutes"><p class="xs muted" style="margin:6px 0 0">When you hit it, playback pauses. You can add 5 minutes at a time.</p></div>
