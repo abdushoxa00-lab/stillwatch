@@ -251,6 +251,31 @@ const isShort=v=>v.dur>0&&v.dur<=180||/#shorts?\b/i.test(v.title);
 
 /* ================= player ================= */
 let P=null, pReady=false, pendingId=null, tick=null;
+/* Safari-blocking mode: privacy-enhanced embed (youtube-nocookie.com), driven over the embed's postMessage channel,
+   so nothing needs to load from youtube.com itself. */
+class LitePlayer{
+  constructor(elId,{videoId,start,onReady,onStateChange,onError}){
+    this.h={onReady,onStateChange,onError}; this.info={}; this.ready=false;
+    const host=document.getElementById(elId); this.f=document.createElement("iframe");
+    this.f.setAttribute("allow","autoplay; encrypted-media; fullscreen"); this.f.setAttribute("allowfullscreen",""); this.f.title="Video player";
+    this.f.style.cssText="position:absolute;inset:0;width:100%;height:100%;border:0"; host.replaceWith(this.f); this.f.id=elId;
+    window.addEventListener("message",e=>this.onMsg(e)); this.load(videoId,start);
+  }
+  url(id,start){ return `https://www.youtube-nocookie.com/embed/${encodeURIComponent(id)}?enablejsapi=1&playsinline=1&rel=0&autoplay=1&start=${start|0}&origin=${encodeURIComponent(location.origin)}&widgetid=1`; }
+  load(id,start){ this.ready=false; this.info={}; this.f.src=this.url(id,start); clearInterval(this.ping); let n=0;
+    this.ping=setInterval(()=>{ if(this.ready||++n>60){ clearInterval(this.ping); return; } this.post({event:"listening",id:1,channel:"widget"}); },250); }
+  post(o){ try{ this.f.contentWindow.postMessage(JSON.stringify(o),"https://www.youtube-nocookie.com"); }catch(e){} }
+  cmd(func,args=[]){ this.post({event:"command",func,args,id:1,channel:"widget"}); }
+  onMsg(e){ if(e.source!==this.f.contentWindow) return; let d; try{ d=typeof e.data==="string"?JSON.parse(e.data):e.data; }catch(_){ return; }
+    if(d.event==="onReady"&&!this.ready){ this.ready=true; this.h.onReady&&this.h.onReady(); }
+    if(d.event==="infoDelivery"&&d.info){ Object.assign(this.info,d.info); if(!this.ready){ this.ready=true; this.h.onReady&&this.h.onReady(); } if("playerState" in d.info) this.h.onStateChange&&this.h.onStateChange({data:d.info.playerState}); }
+    if(d.event==="onStateChange") this.h.onStateChange&&this.h.onStateChange({data:d.info});
+    if(d.event==="onError") this.h.onError&&this.h.onError({data:d.info}); }
+  playVideo(){ this.cmd("playVideo"); } pauseVideo(){ this.cmd("pauseVideo"); } stopVideo(){ this.cmd("stopVideo"); }
+  seekTo(t,a){ this.cmd("seekTo",[t,a]); } setPlaybackRate(r){ this.cmd("setPlaybackRate",[r]); }
+  getCurrentTime(){ return +this.info.currentTime||0; } getPlayerState(){ return this.info.playerState??-1; }
+  loadVideoById({videoId,startSeconds}){ this.load(videoId,startSeconds); }
+}
 function loadYT(){ if(window.YT&&YT.Player) return Promise.resolve(); if(loadYT.p) return loadYT.p;
   loadYT.p=new Promise(res=>{ window.onYouTubeIframeAPIReady=res; const s=document.createElement("script"); s.src="https://www.youtube.com/iframe_api"; s.onerror=()=>toast("Couldn't load the YouTube player."); document.head.appendChild(s); }); return loadYT.p; }
 /* ================= intent check ================= */
@@ -301,13 +326,18 @@ async function play(id){
   ui.cur=id; document.body.classList.add("watching"); $("#dock").classList.add("on"); $("#dockTitle").textContent=v?v.title:"";
   const h=S.hist[id]||{}; const start=(h.t>10 && (!v||h.t<v.dur-20))? Math.floor(h.t):0;
   if(window.__MOCK){ renderWatch(); return; }
+  if(S.set.lite){
+    if(!P){ P=new LitePlayer("player",{videoId:id,start,onReady:()=>{ pReady=true; try{ P.setPlaybackRate(S.set.speed); }catch(e){} },onStateChange:onState,onError:e=>toast(e.data===101||e.data===150?"The owner doesn't allow this video to play here.":"Playback error.")}); }
+    else P.loadVideoById({videoId:id,startSeconds:start});
+    renderWatch(); window.scrollTo({top:0}); return;
+  }
   await loadYT();
   if(!P){ pendingId={id,start}; P=new YT.Player("player",{videoId:id,playerVars:{playsinline:1,rel:0,start,autoplay:1,origin:location.origin},
       events:{onReady:()=>{ pReady=true; try{ P.setPlaybackRate(S.set.speed); P.playVideo(); }catch(e){} },onStateChange:onState,onError:e=>toast(e.data===101||e.data===150?"The owner doesn't allow this video to play here.":"Playback error.")}}); }
   else if(pReady){ P.loadVideoById({videoId:id,startSeconds:start}); setTimeout(()=>{ try{ P.setPlaybackRate(S.set.speed); }catch(e){} },500); }
   renderWatch(); window.scrollTo({top:0});
 }
-function onState(e){ if(e.data===YT.PlayerState.ENDED && ui.cur){ const h=S.hist[ui.cur]; if(h) h.done=true; save(); const nx=S.later.find(x=>x!==ui.cur); if(nx) toast("Up next in Watch later: "+(S.videos[nx]?.title||"next video")); } }
+function onState(e){ if(e.data===0 && ui.cur){ const h=S.hist[ui.cur]; if(h) h.done=true; save(); const nx=S.later.find(x=>x!==ui.cur); if(nx) toast("Up next in Watch later: "+(S.videos[nx]?.title||"next video")); } }
 function curTime(){ try{ return P&&pReady? P.getCurrentTime() : 0; }catch(e){ return 0; } }
 function isPlaying(){ try{ return P&&pReady&&P.getPlayerState()===1; }catch(e){ return false; } }
 function closePlayer(){ try{ P&&pReady&&P.stopVideo(); }catch(e){} ui.cur=null; $("#dock").classList.remove("on"); document.body.classList.remove("watching"); render(); }
@@ -576,6 +606,7 @@ function renderYou(){
    <div class="label">Viewing</div>
    <div class="card" style="padding:4px 16px">
      <button class="toggle" role="switch" aria-checked="${S.set.hideShorts}" data-tog="hideShorts"><span>Hide Shorts and clips under 3 min</span><span class="sw"></span></button>
+     <button class="toggle" role="switch" aria-checked="${!!S.set.lite}" data-tog="lite"><span>Safari blocking mode<br><span class="xs muted">Plays from youtube-nocookie.com so you can block youtube.com with Screen Time. Reopen the app after changing.</span></span><span class="sw"></span></button>
    </div>
    <div class="label">YouTube connection</div>
    <div class="card"><label for="key" class="sm" style="font-weight:700">YouTube Data API key</label>
